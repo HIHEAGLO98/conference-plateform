@@ -1,0 +1,417 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  //url      = env("DATABASE_URL")
+}
+
+// Prisma Schema — Plateforme de Gestion de Conférences
+// Stack : Next.js 15 (App Router, TS) · Prisma · PostgreSQL
+// Convention : colonnes snake_case côté DB, champs camelCase côté TS
+
+// ENUMS
+
+/// Rôles multi-acteurs (cf. cahier de charge II)
+enum Role {
+  PARTICIPANT
+  CONFERENCIER
+  ORGANISATEUR
+  ADMIN
+}
+
+/// Cycle de vie d'un compte (vérification email, blocage admin, etc.)
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+/// Cycle de vie éditorial d'une conférence (brouillon → publié → archivé)
+enum ConferenceStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  CANCELLED
+}
+
+/// Visibilité d'une conférence (publique ou sur invitation)
+enum ConferenceVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+/// Typologie d'une session (cf. maquette )
+enum SessionType {
+  KEYNOTE
+  WORKSHOP
+  PANEL
+  TALK
+  POSTER
+  BREAK
+}
+
+/// Workflow éditorial d'un article scientifique
+enum ArticleStatus {
+  DRAFT
+  PENDING
+  REVIEWING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+/// Format de soumission ( radio présentation)
+enum ArticleType {
+  ORAL
+  POSTER
+  SHORT_PAPER
+  FULL_PAPER
+}
+
+/// Cycle d'une inscription (pré-inscription → confirmée → présence scannée)
+enum InscriptionStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  ATTENDED
+}
+
+/// Catégorie tarifaire d'inscription ()
+enum InscriptionType {
+  STANDARD
+  STUDENT
+  VIP
+  SPEAKER
+  ORGANIZER
+}
+
+/// Canaux de notification (Resend + in-app)
+enum NotificationType {
+  INSCRIPTION_CONFIRMED
+  ARTICLE_STATUS_CHANGED
+  ATTESTATION_AVAILABLE
+  PROGRAM_UPDATED
+  CONFERENCE_REMINDER
+  SYSTEM
+}
+
+/// Jetons courts utilisés hors session (OTP mail, reset password)
+enum TokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  OTP
+}
+
+/// Journal d'audit — événements sensibles tracés (Admin)
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  REGISTER
+  UPDATE_PROFILE
+  CREATE_CONFERENCE
+  UPDATE_CONFERENCE
+  DELETE_CONFERENCE
+  PUBLISH_CONFERENCE
+  CREATE_SESSION
+  UPDATE_SESSION
+  DELETE_SESSION
+  SUBMIT_ARTICLE
+  UPDATE_ARTICLE_STATUS
+  INSCRIPTION_CREATED
+  INSCRIPTION_CANCELLED
+  CHECK_IN
+  USER_BLOCKED
+  USER_UNBLOCKED
+  ROLE_CHANGED
+  OTHER
+}
+
+enum FormaType {
+  PRESENTIAL
+  VIRTUAL
+  HYBRID
+}
+
+// MODELS
+
+/// Utilisateur — racine d'authentification pour tous les rôles.
+/// L'affiliation universitaire est demandée au register (cf. auth.html).
+model User {
+  id            String     @id @default(uuid()) @db.Uuid
+  nom           String     @db.VarChar(100)
+  prenom        String     @db.VarChar(100)
+  email         String     @unique @db.VarChar(255)
+  motDePasse    String     @map("mot_de_passe") @db.VarChar(255) // hash bcrypt/argon2
+  role          Role       @default(PARTICIPANT)
+  status        UserStatus @default(PENDING_VERIFICATION)
+  pays          String?    @db.VarChar(100)
+  affiliation   String?    @db.VarChar(255) // ex: "Université Paris-Saclay"
+  telephone     String?    @db.VarChar(30)
+  avatarUrl     String?    @map("avatar_url") @db.VarChar(500)
+  bio           String?    @db.Text
+  emailVerified DateTime?  @map("email_verified")
+  lastLoginAt   DateTime?  @map("last_login_at")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  //  Relations
+  // Un organisateur (User) peut organiser plusieurs conférences (1-N)
+  conferencesOrganisees Conference[]        @relation("OrganisateurConferences")
+  // Un conférencier (User) peut soumettre 0..N articles
+  articles              Article[]
+  // Un participant peut s'inscrire à N conférences (via Inscription)
+  inscriptions          Inscription[]
+  notifications         Notification[]
+  tokens                VerificationToken[]
+  auditLogs             AuditLog[]
+  favorites             Favorite[]
+  // Un conférencier peut être présentateur/modérateur de sessions
+  sessionsPresentees    Session[]           @relation("SessionPresenter")
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+/// Jetons court-terme (OTP email, reset password) — expirent automatiquement.
+model VerificationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  token     String    @unique
+  type      TokenType
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("verification_tokens")
+}
+
+/// Conférence — entité pivot organisée par un User (rôle ORGANISATEUR).
+/// Le slug unique permet des URL propres (/conferences/icais-2026).
+model Conference {
+  id           String               @id @default(uuid()) @db.Uuid
+  slug         String               @unique @db.VarChar(150)
+  shortName    String?              @map("short_name") @db.VarChar(50) // "ICAIS 2026"
+  titre        String               @db.VarChar(255)
+  description  String               @db.Text
+  theme        String               @db.VarChar(255)
+  format       FormaType            @default(HYBRID)
+  lieu         String               @db.VarChar(255)
+  ville        String               @db.VarChar(255)
+  pays         String               @db.VarChar(255)
+  organisation String?              @db.VarChar(255) // ex: "Université Paris-Saclay · IEEE"
+  bannerUrl    String?              @map("banner_url") @db.VarChar(500)
+  websiteUrl   String?              @map("website_url") @db.VarChar(500)
+  dateDebut    DateTime             @map("date_debut")
+  dateFin      DateTime             @map("date_fin")
+  capaciteMax  Int?                 @map("capacite_max")
+  seulAlerte   Int?                 @map("seul_alerte") // seuil d'alerte de capacité (ex: 80% de capaciteMax)
+  statut       ConferenceStatus     @default(DRAFT)
+  visibility   ConferenceVisibility @default(PUBLIC)
+  publishedAt  DateTime?            @map("published_at")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  // Relations
+  // Restrict : on bloque la suppression d'un organisateur s'il a des confs
+  organisateurId String @map("organisateur_id") @db.Uuid
+  organisateur   User   @relation("OrganisateurConferences", fields: [organisateurId], references: [id], onDelete: Restrict)
+
+  // Cascade : supprimer une conf supprime ses sessions, inscriptions, FAQ, favoris
+  sessions     Session[]
+  inscriptions Inscription[]
+  favorites    Favorite[]
+  faqs         Faq[]
+
+  @@index([statut])
+  @@index([organisateurId])
+  @@index([dateDebut])
+  @@map("conferences")
+}
+
+/// Session — créneau programmé à l'intérieur d'une conférence.
+/// Peut héberger plusieurs articles (M-N via ArticleSession).
+model Session {
+  id           String      @id @default(uuid()) @db.Uuid
+  titre        String      @db.VarChar(255)
+  description  String?     @db.Text
+  type         SessionType @default(TALK)
+  salle        String?     @db.VarChar(100)
+  intervenants String[]    @map("intervenants") // noms des intervenants
+  horaireDebut DateTime    @map("horaire_debut")
+  horaireFin   DateTime    @map("horaire_fin")
+  capacite     Int
+  seulAlerte   Int?        @map("seul_alerte") // seuil d'alerte de capacité (ex: 80% de capaciteMax)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  //  Relations
+  // Cascade : si la conférence est supprimée, ses sessions disparaissent
+  conferenceId String     @map("conference_id") @db.Uuid
+  conference   Conference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
+
+  // Présentateur/modérateur optionnel ; SetNull si le User est supprimé
+  presenterId String? @map("presenter_id") @db.Uuid
+  presenter   User?   @relation("SessionPresenter", fields: [presenterId], references: [id], onDelete: SetNull)
+
+  // M-N explicite : table d'association ArticleSession
+  articles ArticleSession[]
+
+  @@index([conferenceId])
+  @@index([horaireDebut])
+  @@map("sessions")
+}
+
+/// Article scientifique soumis par un conférencier (PDF + métadonnées).
+model Article {
+  id          String        @id @default(uuid()) @db.Uuid
+  titre       String        @db.VarChar(255)
+  resume      String        @db.Text
+  motsCles    String[]      @map("mots_cles") // tags (Postgres text[])
+  coAuthors   String[]      @map("co_authors") // emails des co-auteurs
+  fileUrl     String?       @map("file_url") @db.VarChar(500) // URL du PDF
+  type        ArticleType   @default(FULL_PAPER)
+  statut      ArticleStatus @default(DRAFT)
+  commentaire String?       @db.Text // commentaire du comité de lecture
+  submittedAt DateTime?     @map("submitted_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  //  Relations
+  // Auteur principal (conférencier). Cascade : supprimer le User supprime ses articles.
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // M-N : un article peut être présenté dans plusieurs sessions
+  sessions ArticleSession[]
+
+  @@index([userId])
+  @@index([statut])
+  @@map("articles")
+}
+
+/// Table d'association M-N Article  Session (explicite pour porter des métadonnées).
+model ArticleSession {
+  articleId    String   @map("article_id") @db.Uuid
+  sessionId    String   @map("session_id") @db.Uuid
+  ordrePassage Int?     @map("ordre_passage") // ordre dans la session
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, sessionId])
+  @@index([sessionId])
+  @@map("article_sessions")
+}
+
+/// Inscription — un participant s'inscrit à une conférence.
+/// Contrainte d'unicité : une seule inscription active par (user, conference).
+model Inscription {
+  id                String            @id @default(uuid()) @db.Uuid
+  dateInscription   DateTime          @default(now()) @map("date_inscription")
+  type              InscriptionType   @default(STANDARD)
+  statut            InscriptionStatus @default(PENDING)
+  qrCodeUrl         String?           @map("qr_code_url") @db.VarChar(500)
+  attestationPdfUrl String?           @map("attestation_pdf_url") @db.VarChar(500)
+  checkedInAt       DateTime?         @map("checked_in_at") // horodatage scan QR
+  cancelledAt       DateTime?         @map("cancelled_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  conferenceId String     @map("conference_id") @db.Uuid
+  conference   Conference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
+
+  // Empêche les doubles inscriptions (un user = une inscription par conférence)
+  @@unique([userId, conferenceId])
+  @@index([statut])
+  @@index([conferenceId])
+  @@map("inscriptions")
+}
+
+/// Favoris ().
+model Favorite {
+  id           String   @id @default(uuid()) @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+  userId       String   @map("user_id") @db.Uuid
+  conferenceId String   @map("conference_id") @db.Uuid
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conference Conference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conferenceId])
+  @@map("favorites")
+}
+
+/// FAQ d'une conférence (pour ajouter des questions fréquentes).
+model Faq {
+  id        String   @id @default(uuid()) @db.Uuid
+  question  String   @db.VarChar(500)
+  answer    String   @db.Text
+  ordre     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  conferenceId String     @map("conference_id") @db.Uuid
+  conference   Conference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
+
+  @@index([conferenceId])
+  @@map("faqs")
+}
+
+/// Notifications in-app + canal email (Resend).
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  type      NotificationType
+  titre     String           @db.VarChar(255)
+  message   String           @db.Text
+  link      String?          @db.VarChar(500)
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+/// Journal d'audit — traçabilité des actions sensibles.
+/// SetNull si le User est supprimé, pour conserver l'historique.
+model AuditLog {
+  id         String      @id @default(uuid()) @db.Uuid
+  action     AuditAction
+  entityType String?     @map("entity_type") @db.VarChar(50) // "Conference", "User"…
+  entityId   String?     @map("entity_id") @db.VarChar(100)
+  metadata   Json? // diff avant/après
+  ipAddress  String?     @map("ip_address") @db.VarChar(45) // IPv4 ou IPv6
+  userAgent  String?     @map("user_agent") @db.VarChar(500)
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  userId String? @map("user_id") @db.Uuid
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([action])
+  @@map("audit_logs")
+}
