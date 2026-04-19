@@ -116,6 +116,9 @@ enum AuditAction {
   LOGIN
   LOGOUT
   REGISTER
+  EMAIL_VERIFIED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
   UPDATE_PROFILE
   CREATE_CONFERENCE
   UPDATE_CONFERENCE
@@ -159,6 +162,7 @@ model User {
   avatarUrl     String?    @map("avatar_url") @db.VarChar(500)
   bio           String?    @db.Text
   emailVerified DateTime?  @map("email_verified")
+  emailVerifie  Boolean    @default(false) @map("email_verifie")
   lastLoginAt   DateTime?  @map("last_login_at")
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
