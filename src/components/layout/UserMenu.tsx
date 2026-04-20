@@ -9,7 +9,7 @@ import {
   Settings,
   User as UserIcon,
 } from "lucide-react";
-import type { Role } from "@prisma/client";
+import type { Role } from "@/generated/prisma/client";
 
 import { logoutUser } from "@/actions/auth";
 import { cn, roleLabel } from "@/lib/utils";
