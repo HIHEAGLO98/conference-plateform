@@ -2,7 +2,6 @@ import type { NextAuthConfig } from "next-auth";
 
 /**
  * Config NextAuth **Edge-compatible** (utilisée par le middleware).
- * ATTENTION : ne jamais importer `bcrypt`/`prisma` ici — ils ne tournent pas sur l'edge runtime.
  * Toute la logique « lourde » (DB + hash) va dans `src/auth.ts`.
  */
 export const authConfig = {
@@ -37,7 +36,7 @@ export const authConfig = {
       const isProtected = protectedPrefixes.some((p) => nextUrl.pathname.startsWith(p));
       const isAuthPage = ["/login", "/register"].includes(nextUrl.pathname);
 
-      if (isProtected && !isLoggedIn) return false; // → redirige vers /login
+      if (isProtected && !isLoggedIn) return false; //  redirige vers /login
       if (isAuthPage && isLoggedIn) {
         return Response.redirect(new URL("/dashboard", nextUrl));
       }

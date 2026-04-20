@@ -1,5 +1,7 @@
 /**
- * Route handler NextAuth v5 — simple réexport des handlers.
+ * Route handler NextAuth v5 - simple réexport des handlers.
  * Toute la config vit dans `src/auth.ts`.
  */
-export { GET, POST } from "@/auth";
+import { handlers } from "@/auth";
+
+export const { GET, POST } = handlers;
