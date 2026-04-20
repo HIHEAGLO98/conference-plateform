@@ -89,7 +89,7 @@ export async function listPublishedConferences(
     ? buildConferenceWhere(options.filters, now, base)
     : base;
 
-  const [items, total] = await prisma.$transaction([
+  const [items, total] = await Promise.all([
     prisma.conference.findMany({
       where,
       orderBy: { publishedAt: "desc" },
