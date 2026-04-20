@@ -1,66 +1,72 @@
 "use client";
 
-import { useState } from "react";
+import {
+  useEffect,
+  useState,
+  useTransition,
+  type FormEvent,
+} from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, MapPin, SlidersHorizontal } from "lucide-react";
+
 import { cn } from "@/lib/utils";
+import {
+  DOMAIN_DEFINITIONS,
+  countActiveFilters,
+  emptyFilters,
+  parseConferenceFiltersFromParams,
+  serializeConferenceFilters,
+  type ConferenceFilters,
+  type FormatFilter,
+  type StatusKey,
+} from "@/lib/queries/conference-filters";
 
-interface DomainOption { id: string; label: string; count: number; }
-const DEFAULT_DOMAINS: DomainOption[] = [
-  { id: "ia", label: "Informatique & IA", count: 48 },
-  { id: "med", label: "Sciences médicales", count: 34 },
-  { id: "phy", label: "Physique & Chimie", count: 27 },
-  { id: "hum", label: "Sciences humaines", count: 22 },
-  { id: "eng", label: "Ingénierie", count: 31 },
-  { id: "law", label: "Droit & Sciences politiques", count: 18 },
-];
-
-type FormatFilter = "all" | "in_person" | "online" | "hybrid";
-const FORMAT_OPTIONS: { id: FormatFilter; label: string }[] = [
-  { id: "all", label: "Tous les formats" },
+const FORMAT_OPTIONS: { id: FormatFilter | ""; label: string }[] = [
+  { id: "", label: "Tous les formats" },
   { id: "in_person", label: "Présentiel" },
   { id: "online", label: "En ligne" },
   { id: "hybrid", label: "Hybride" },
 ];
 
-type StatusKey = "open" | "coming_soon" | "closed";
 const STATUS_OPTIONS: { id: StatusKey; label: string; dotClass: string }[] = [
   { id: "open", label: "Ouvertes", dotClass: "bg-emerald-500" },
   { id: "coming_soon", label: "Bientôt ouvertes", dotClass: "bg-amber-500" },
   { id: "closed", label: "Fermées", dotClass: "bg-slate-400" },
 ];
 
-export interface FiltersState {
-  domains: Set<string>;
-  format: FormatFilter;
-  statuses: Set<StatusKey>;
-  fromDate: string;
-  toDate: string;
-  location: string;
-}
-
 interface ConferenceFilterSidebarProps {
-  domains?: DomainOption[];
-  initialFilters?: Partial<FiltersState>;
-  onApply?: (filters: FiltersState) => void;
+  /** Compteurs optionnels par ID de domaine. */
+  domainCounts?: Record<string, number>;
 }
 
+/**
+ * Barre latérale de filtres - client component lié à l'URL.
+ *
+ * Flux :
+ *   URL - parseConferenceFiltersFromParams - state local
+ *   state local - serializeConferenceFilters - router.push(?…)
+ *   Le Server Component `page.tsx` re-fetch avec les nouveaux filtres.
+ */
 export function ConferenceFilterSidebar({
-  domains = DEFAULT_DOMAINS,
-  initialFilters,
-  onApply,
+  domainCounts,
 }: ConferenceFilterSidebarProps) {
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const [filters, setFilters] = useState<FiltersState>(() => ({
-    domains: new Set(initialFilters?.domains ?? ["ia"]),
-    format: initialFilters?.format ?? "all",
-    statuses: new Set(
-      initialFilters?.statuses ?? (["open", "coming_soon"] as StatusKey[])
-    ),
-    fromDate: initialFilters?.fromDate ?? "",
-    toDate: initialFilters?.toDate ?? "",
-    location: initialFilters?.location ?? "",
-  }));
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const [filters, setFilters] = useState<ConferenceFilters>(() =>
+    parseConferenceFiltersFromParams(searchParams)
+  );
+
+  // Resync state si l'URL change (back/forward, click "Tendances", chip…).
+  const searchKey = searchParams.toString();
+  useEffect(() => {
+    setFilters(parseConferenceFiltersFromParams(searchParams));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchKey]);
 
   const toggleDomain = (id: string) =>
     setFilters((f) => {
@@ -78,26 +84,31 @@ export function ConferenceFilterSidebar({
       return { ...f, statuses: next };
     });
 
-  const reset = () =>
-    setFilters({
-      domains: new Set(),
-      format: "all",
-      statuses: new Set(),
-      fromDate: "",
-      toDate: "",
-      location: "",
-    });
+  const navigateWith = (next: ConferenceFilters) => {
+    const params = serializeConferenceFilters(next);
+    params.delete("page"); // reset pagination à chaque changement de filtre
+    const qs = params.toString();
+    const href = qs ? `${pathname}?${qs}` : pathname;
+    startTransition(() => router.push(href, { scroll: false }));
+    setMobileOpen(false);
+  };
 
-  const activeCount =
-    filters.domains.size +
-    filters.statuses.size +
-    (filters.format !== "all" ? 1 : 0) +
-    (filters.fromDate ? 1 : 0) +
-    (filters.toDate ? 1 : 0) +
-    (filters.location.trim() ? 1 : 0);
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    navigateWith(filters);
+  };
+
+  const handleReset = () => {
+    const blank = emptyFilters();
+    setFilters(blank);
+    navigateWith(blank);
+  };
+
+  const activeCount = countActiveFilters(filters);
 
   return (
     <aside className="w-full flex-shrink-0 lg:w-72">
+      {/* Mobile toggle */}
       <button
         type="button"
         onClick={() => setMobileOpen((v) => !v)}
@@ -117,23 +128,37 @@ export function ConferenceFilterSidebar({
         <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", mobileOpen && "rotate-180")} />
       </button>
 
-      <div
+      <form
         id="filters-panel"
+        onSubmit={handleSubmit}
         className={cn(
           "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-20 lg:block",
           mobileOpen ? "block" : "hidden"
         )}
       >
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-800">Filtres</h2>
-          <button type="button" onClick={reset} className="text-xs font-medium text-blue-600 hover:underline">
+          <h2 className="text-sm font-semibold text-slate-800">
+            Filtres
+            {activeCount > 0 && (
+              <span className="ml-1.5 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                {activeCount}
+              </span>
+            )}
+          </h2>
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={activeCount === 0 || isPending}
+            className="text-xs font-medium text-blue-600 hover:underline disabled:opacity-50"
+          >
             Réinitialiser
           </button>
         </div>
 
+        {/* Domaine */}
         <FilterGroup title="Domaine scientifique">
           <div className="space-y-2">
-            {domains.map((d) => (
+            {DOMAIN_DEFINITIONS.map((d) => (
               <label key={d.id} className="group flex cursor-pointer items-center gap-2.5">
                 <input
                   type="checkbox"
@@ -142,9 +167,11 @@ export function ConferenceFilterSidebar({
                   className="h-4 w-4 rounded accent-blue-600"
                 />
                 <span className="text-sm text-slate-700 group-hover:text-slate-900">{d.label}</span>
-                <span className="ml-auto rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-400">
-                  {d.count}
-                </span>
+                {typeof domainCounts?.[d.id] === "number" && (
+                  <span className="ml-auto rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-400">
+                    {domainCounts[d.id]}
+                  </span>
+                )}
               </label>
             ))}
           </div>
@@ -152,10 +179,11 @@ export function ConferenceFilterSidebar({
 
         <Divider />
 
+        {/* Format */}
         <FilterGroup title="Format">
           <div className="space-y-2">
             {FORMAT_OPTIONS.map((opt) => (
-              <label key={opt.id} className="flex cursor-pointer items-center gap-2.5">
+              <label key={opt.id || "all"} className="flex cursor-pointer items-center gap-2.5">
                 <input
                   type="radio"
                   name="format"
@@ -171,6 +199,7 @@ export function ConferenceFilterSidebar({
 
         <Divider />
 
+        {/* Statut */}
         <FilterGroup title="Statut des inscriptions">
           <div className="space-y-2">
             {STATUS_OPTIONS.map((opt) => (
@@ -192,6 +221,7 @@ export function ConferenceFilterSidebar({
 
         <Divider />
 
+        {/* Période */}
         <FilterGroup title="Période">
           <div className="space-y-2">
             <div>
@@ -200,6 +230,7 @@ export function ConferenceFilterSidebar({
                 id="filter-from"
                 type="date"
                 value={filters.fromDate}
+                max={filters.toDate || undefined}
                 onChange={(e) => setFilters((f) => ({ ...f, fromDate: e.target.value }))}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200"
               />
@@ -210,6 +241,7 @@ export function ConferenceFilterSidebar({
                 id="filter-to"
                 type="date"
                 value={filters.toDate}
+                min={filters.fromDate || undefined}
                 onChange={(e) => setFilters((f) => ({ ...f, toDate: e.target.value }))}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200"
               />
@@ -219,6 +251,7 @@ export function ConferenceFilterSidebar({
 
         <Divider />
 
+        {/* Pays / Ville */}
         <FilterGroup title="Pays / Ville">
           <div className="relative">
             <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
@@ -233,13 +266,13 @@ export function ConferenceFilterSidebar({
         </FilterGroup>
 
         <button
-          type="button"
-          onClick={() => { onApply?.(filters); setMobileOpen(false); }}
-          className="mt-5 w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-200 transition-all hover:bg-blue-700 hover:shadow-blue-300"
+          type="submit"
+          disabled={isPending}
+          className="mt-5 w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-200 transition-all hover:bg-blue-700 hover:shadow-blue-300 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          Appliquer les filtres
+          {isPending ? "Application…" : "Appliquer les filtres"}
         </button>
-      </div>
+      </form>
     </aside>
   );
 }
