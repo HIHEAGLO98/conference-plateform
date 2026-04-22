@@ -11,16 +11,24 @@ import {
 
 import { getConferenceBySlug } from "@/lib/queries/conference-detail";
 import { ConferenceHero } from "@/components/conference/ConferenceHero";
+import { StickyNav } from "@/components/conference/StickyNav";
+import { AboutSection } from "@/components/conference/AboutSection";
 import { ProgramSection } from "@/components/conference/ProgramSection";
+import {
+  SpeakersSection,
+  extractSpeakers,
+} from "@/components/conference/SpeakersSection";
+import { VenueSection } from "@/components/conference/VenueSection";
+import { FaqSection } from "@/components/conference/FaqSection";
 import { RegistrationSidebar } from "@/components/conference/RegistrationSidebar";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { StickyNav } from "@/components/conference/StickyNav";
 
 /* 
- * 
+ * Page — /conferences/[slug]
+ *
  * Server Component : toute la donnée est résolue côté serveur via Prisma,
- * puis passée en props aux composants client (ProgramSection, RegistrationSidebar).
+ * puis passée en props aux composants (client ou server selon les cas).
  *  */
 
 interface PageProps {
@@ -68,11 +76,14 @@ export default async function ConferenceDetailPage({ params }: PageProps) {
   const isUpcoming = conference.dateDebut > now;
   const showDeadlineAlert = isUpcoming && daysUntilStart <= 30;
 
+  // Dérivation des intervenants depuis les sessions (pas de modèle Speaker en DB).
+  const speakers = extractSpeakers(conference.sessions);
+
   return (
     <>
+        <Navbar />
         <main className="min-h-screen bg-slate-50">
         {/*  Breadcrumb  */}
-        <Navbar />
         <nav
             aria-label="Fil d'Ariane"
             className="border-b border-slate-100 bg-white"
@@ -80,10 +91,7 @@ export default async function ConferenceDetailPage({ params }: PageProps) {
             <div className="mx-auto max-w-7xl px-4 py-3 sm:px-8">
             <ol className="flex items-center gap-2 text-xs text-slate-500">
                 <li>
-                <Link
-                    href="/"
-                    className="font-medium hover:text-blue-600"
-                >
+                <Link href="/" className="font-medium hover:text-blue-600">
                     Accueil
                 </Link>
                 </li>
@@ -91,10 +99,7 @@ export default async function ConferenceDetailPage({ params }: PageProps) {
                 ›
                 </li>
                 <li>
-                <Link
-                    href="/"
-                    className="font-medium hover:text-blue-600"
-                >
+                <Link href="/" className="font-medium hover:text-blue-600">
                     Conférences
                 </Link>
                 </li>
@@ -113,7 +118,7 @@ export default async function ConferenceDetailPage({ params }: PageProps) {
         {/*  Hero  */}
         <ConferenceHero conference={conference} />
 
-        {/* Sticky section nav */}
+        {/*  Sticky section nav (scroll-spy + smooth scroll)  */}
         <StickyNav />
 
         {/*  Main 2-col layout  */}
@@ -138,49 +143,23 @@ export default async function ConferenceDetailPage({ params }: PageProps) {
                 </div>
                 )}
 
-                {/* À propos (TODO: extraire dans AboutSection client) */}
-                <section
-                id="sec-about"
-                className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm"
-                >
-                <h2 className="mb-4 flex items-center gap-2 font-heading text-xl font-bold text-slate-900">
-                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-100">
-                    <Calendar className="h-4 w-4 text-blue-700" />
-                    </span>
-                    À propos de la conférence
-                </h2>
-                <div className="space-y-3 whitespace-pre-line text-sm leading-relaxed text-slate-600">
-                    {conference.description}
-                </div>
-
-                {/* Thématiques */}
-                {conference.theme && (
-                    <div className="mt-5 border-t border-slate-100 pt-5">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Thématique principale
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                        <span className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
-                        {conference.theme}
-                        </span>
-                    </div>
-                    </div>
-                )}
-                </section>
+                {/* À propos */}
+                <AboutSection
+                description={conference.description}
+                theme={conference.theme}
+                />
 
                 {/* Chiffres clés */}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <StatCard
-                    value={
-                    Math.max(
-                        1,
-                        Math.ceil(
+                    value={Math.max(
+                    1,
+                    Math.ceil(
                         (conference.dateFin.getTime() -
-                            conference.dateDebut.getTime()) /
-                            (1000 * 60 * 60 * 24)
-                        ) + 1
-                    ).toString()
-                    }
+                        conference.dateDebut.getTime()) /
+                        (1000 * 60 * 60 * 24)
+                    ) + 1
+                    ).toString()}
                     label="Jours de conférence"
                 />
                 <StatCard
@@ -208,9 +187,18 @@ export default async function ConferenceDetailPage({ params }: PageProps) {
                 dateFin={conference.dateFin}
                 />
 
-                {/* TODO: <SpeakersSection /> */}
-                {/* TODO: <VenueSection lieu={conference.lieu} /> */}
-                {/* TODO: <FaqSection faqs={conference.faqs} /> */}
+                {/* Intervenants (dérivés de Session.presenter) */}
+                <SpeakersSection speakers={speakers} />
+
+                {/* Lieu */}
+                <VenueSection
+                lieu={conference.lieu}
+                websiteUrl={conference.websiteUrl}
+                organisation={conference.organisation}
+                />
+
+                {/* FAQ */}
+                <FaqSection faqs={conference.faqs} />
             </div>
 
             {/* RIGHT SIDEBAR */}
@@ -271,7 +259,7 @@ export default async function ConferenceDetailPage({ params }: PageProps) {
                     </div>
                     {conference.organisation && (
                     <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
-                        Sous l'égide de{" "}
+                        Sous l&apos;égide de{" "}
                         <span className="font-medium text-slate-700">
                         {conference.organisation}
                         </span>
@@ -283,9 +271,8 @@ export default async function ConferenceDetailPage({ params }: PageProps) {
             </div>
         </div>
         </main>
-         <Footer />
+        <Footer />  
     </>
-    
   );
 }
 

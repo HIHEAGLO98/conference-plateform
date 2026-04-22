@@ -5,6 +5,8 @@ import {
   Users,
   Presentation,
 } from "lucide-react";
+import Link from "next/link";
+
 
 /**
  * Panel gauche (Server Component — statique, zéro JS envoyé au client).
@@ -29,14 +31,16 @@ export function BrandPanel() {
 
       <div className="relative z-10">
         {/* Logo */}
-        <div className="mb-10 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 shadow-lg">
-            <Presentation className="h-6 w-6 text-white" />
+        <Link href="/">
+          <div className="mb-10 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 shadow-lg">
+              <Presentation className="h-6 w-6 text-white" />
+            </div>
+            <span className="font-heading text-xl font-bold tracking-tight text-white">
+              ConferenceHub
+            </span>
           </div>
-          <span className="font-heading text-xl font-bold tracking-tight text-white">
-            ConferenceHub
-          </span>
-        </div>
+          </Link>
 
         {/* Headline */}
         <h2 className="mb-4 font-heading text-3xl font-bold leading-tight text-white xl:text-4xl">

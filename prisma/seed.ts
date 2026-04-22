@@ -4,7 +4,7 @@
 
  *  Mot de passe commun pour TOUS les comptes de test : "Password123!"
  */
-
+import "dotenv/config";
 // Output custom du generator → on importe depuis le chemin généré
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";

@@ -1,6 +1,7 @@
 import { Presentation } from "lucide-react";
 import { BrandPanel } from "@/components/auth/BrandPanel";
 import { AuthTabs } from "@/components/auth/AuthTabs";
+import Link from "next/link";
 
 /**
  * Layout partagé entre /login et /register.
@@ -23,11 +24,13 @@ export default function AuthLayout({
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-700">
             <Presentation className="h-5 w-5 text-white" />
           </div>
-          <span className="font-heading text-lg font-bold text-slate-900">
-            ConferenceHub
-          </span>
+          
+            <span className="font-heading text-lg font-bold text-slate-900">
+              ConferenceHub
+            </span>
+          
         </div>
-
+      
         <div className="w-full max-w-md">
           <AuthTabs />
           {children}
