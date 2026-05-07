@@ -14,10 +14,8 @@ import { ConferenceHero } from "@/components/conference/ConferenceHero";
 import { StickyNav } from "@/components/conference/StickyNav";
 import { AboutSection } from "@/components/conference/AboutSection";
 import { ProgramSection } from "@/components/conference/ProgramSection";
-import {
-  SpeakersSection,
-  extractSpeakers,
-} from "@/components/conference/SpeakersSection";
+import {SpeakersSection} from "@/components/conference/SpeakersSection";
+import { extractSpeakers } from "@/lib/utils/speakers";
 import { VenueSection } from "@/components/conference/VenueSection";
 import { FaqSection } from "@/components/conference/FaqSection";
 import { RegistrationSidebar } from "@/components/conference/RegistrationSidebar";

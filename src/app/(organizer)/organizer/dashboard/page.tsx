@@ -32,7 +32,7 @@ export default async function OrganizerDashboardPage({
 }: DashboardPageProps) {
   const session = await auth();
   if (!session?.user?.id) {
-    redirect("/login?callbackUrl=/dashboard");
+    redirect("/login?callbackUrl=/organizer/dashboard");
   }
 
   const organizerId = session.user.id;
@@ -57,7 +57,7 @@ export default async function OrganizerDashboardPage({
           </Suspense>
         </section>
 
-        {/* ═══ Main layout 2 colonnes : hiérarchie + sidebar actions ═══ */}
+        {/* Main layout 2 colonnes : hiérarchie + sidebar actions  */}
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <section>
             <SectionHeader
@@ -76,13 +76,13 @@ export default async function OrganizerDashboardPage({
           </aside>
         </div>
 
-        {/* ═══ Alertes publication (brouillons) ═════════════════════════ */}
+        {/*  Alertes publication (brouillons)  */}
         <Suspense fallback={null}>
           <DraftAlertSection organizerId={organizerId} />
         </Suspense>
       </div>
 
-      {/* ═══ Modals URL-driven ═════════════════════════════════════════ */}
+      {/*  Modals URL-driven  */}
       {activeModal === "create-conf" && <CreateConferenceModal />}
       {activeModal === "create-session" && (
         <Suspense fallback={null}>
@@ -148,7 +148,7 @@ async function DraftAlertSection({ organizerId }: { organizerId: string }) {
         </p>
       </div>
       <Link
-        href="/dashboard/conferences?statut=DRAFT"
+        href="/organizer/dashboard/conferences?statut=DRAFT"
         className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-amber-700"
       >
         Gérer les brouillons
@@ -157,9 +157,9 @@ async function DraftAlertSection({ organizerId }: { organizerId: string }) {
   );
 }
 
-/* ────────────────────────────────────────────────────────────────────────────
+/* 
  * Presentational sub-components
- * ────────────────────────────────────────────────────────────────────────── */
+ *  */
 
 function WelcomeBanner({ firstName }: { firstName: string }) {
   const today = new Intl.DateTimeFormat("fr-FR", {

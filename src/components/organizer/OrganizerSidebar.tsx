@@ -44,47 +44,47 @@ const NAV_ITEMS: Array<{
   countKey?: "conferenceCount";
 }> = [
   {
-    href: "/dashboard",
+    href: "/organizer/dashboard",
     label: "Vue d'ensemble",
     icon: LayoutDashboard,
-    matchPrefix: "/dashboard",
+    matchPrefix: "/organizer/dashboard",
   },
   {
-    href: "/dashboard/conferences",
+    href: "/organizer/conferences",
     label: "Mes Conférences",
     icon: Calendar,
-    matchPrefix: "/dashboard/conferences",
+    matchPrefix: "/organizer/conferences",
     countKey: "conferenceCount",
   },
   {
-    href: "/dashboard/sessions",
+    href: "/organizer/sessions",
     label: "Sessions",
     icon: Layers,
-    matchPrefix: "/dashboard/sessions",
+    matchPrefix: "/organizer/sessions",
   },
   {
-    href: "/dashboard/participants",
+    href: "/organizer/participants",
     label: "Participants",
     icon: Users,
-    matchPrefix: "/dashboard/participants",
+    matchPrefix: "/organizer/participants",
   },
   {
-    href: "/dashboard/submissions",
+    href: "/organizer/submissions",
     label: "Soumissions",
     icon: FileText,
-    matchPrefix: "/dashboard/submissions",
+    matchPrefix: "/organizer/submissions",
   },
   {
-    href: "/dashboard/stats",
+    href: "/organizer/stats",
     label: "Statistiques",
     icon: BarChart3,
-    matchPrefix: "/dashboard/stats",
+    matchPrefix: "/organizer/stats",
   },
   {
-    href: "/dashboard/settings",
+    href: "/organizer/settings",
     label: "Paramètres",
     icon: Settings,
-    matchPrefix: "/dashboard/settings",
+    matchPrefix: "/organizer/settings",
   },
 ];
 
@@ -100,7 +100,7 @@ export function OrganizerSidebar({
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col bg-slate-900">
       {/* Brand */}
       <div className="border-b border-white/10 px-5 py-5">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
+        <Link href="/organizer/dashboard" className="flex items-center gap-2.5">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600">
             <Building2 className="h-4 w-4 text-white" />
           </span>
@@ -137,8 +137,8 @@ export function OrganizerSidebar({
         </p>
         {NAV_ITEMS.map((item) => {
           const isActive =
-            item.matchPrefix === "/dashboard"
-              ? currentPath === "/dashboard"
+            item.matchPrefix === "/organizer/dashboard"
+              ? currentPath === "/organizer/dashboard"
               : currentPath.startsWith(item.matchPrefix ?? item.href);
           const Icon = item.icon;
           const count =

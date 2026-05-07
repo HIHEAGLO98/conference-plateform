@@ -10,6 +10,7 @@ import {
 
 import type { ConferenceDetail } from "@/lib/queries/conference-detail";
 import { cn } from "@/lib/utils";
+import { FormaType } from "@/generated/prisma/client"
 
 /* 
  * Hero statique (Server Component) — tags, titre, infos, jauge.
@@ -33,6 +34,14 @@ type DerivedStatus = {
   dot: string;
 };
 
+const getFormatLabel = (format: FormaType): string => {
+  const labels: Record<FormaType, string> = {
+    PRESENTIAL: "En présentiel",
+    VIRTUAL: "En ligne",
+    HYBRID: "Hybride (Présentiel & En ligne)",
+  };
+  return labels[format] ?? "Format non défini";
+};
 function deriveStatus(now: Date, start: Date, end: Date): DerivedStatus {
   if (end < now) {
     return {
@@ -149,7 +158,7 @@ export function ConferenceHero({ conference }: ConferenceHeroProps) {
 
           <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-xs font-semibold text-slate-300">
             <MapPin className="h-3 w-3" />
-            Présentiel
+            {getFormatLabel(conference.format)}
           </span>
 
           {conference.organisation && (

@@ -1,37 +1,25 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Image from "next/image";
-import { ChevronRight, Users } from "lucide-react";
+import { ChevronRight, Users, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { ConferenceSessionItem } from "@/lib/queries/conference-detail";
+import type { Session } from "@/generated/prisma/client";
+import type { Speaker } from "@/lib/utils/speakers";
+
 
 /* 
- * Section "Intervenants" - Server Component, pas d'interactivité.
+ * Section "Intervenants" - Server Component.
  *
- * Le schema Prisma n'a pas de modèle `Speaker` dédié : on DÉRIVE la liste des
- * intervenants à partir de `Session.presenter` (l'utilisateur qui anime la
- * session). La fonction `extractSpeakers` dédup par user, comptabilise les
+ * La liste des intervenants est dérivée du champ `intervenants` (String[])
+ * du modèle `Session` de Prisma.
+ * La fonction `extractSpeakers` dédup par nom, comptabilise les
  * sessions, et attribue au speaker son rôle "le plus prestigieux" (KEYNOTE >
  * PANEL > WORKSHOP > TALK > POSTER).
- *
- * Plus tard, si on veut un "speaker invité" qui ne présente pas de session
- * (ex: patron sponsor), on ajoutera un modèle `ConferenceSpeaker` en DB.
- *  */
+ */
 
-/*  Types publics  */
-
-export interface Speaker {
-  id: string;
-  nom: string;
-  prenom: string;
-  affiliation: string | null;
-  avatarUrl: string | null;
-  /** Rôle dérivé du type de session le plus prestigieux qu'il anime. */
-  role: string;
-  /** Nombre de sessions animées. */
-  sessionCount: number;
-}
-
-/*  Extraction (utilisable depuis page.tsx ou un autre server component)  */
+/*  Extraction logic  */
 
 type Priority = { score: number; role: string };
 
@@ -44,50 +32,7 @@ const PRIORITY_BY_TYPE: Record<string, Priority> = {
   BREAK: { score: 0, role: "" },
 };
 
-/**
- * Dédup les présentateurs d'une liste de sessions + attribue un rôle et un
- * compteur. Retourne les speakers triés par priorité de rôle décroissante.
- */
-export function extractSpeakers(
-  sessions: ConferenceSessionItem[]
-): Speaker[] {
-  const map = new Map<string, { speaker: Speaker; topScore: number }>();
-
-  for (const s of sessions) {
-    if (!s.presenter) continue;
-
-    const priority = PRIORITY_BY_TYPE[s.type] ?? PRIORITY_BY_TYPE.TALK;
-    if (priority.score === 0) continue; // on ignore les BREAK
-
-    const existing = map.get(s.presenter.id);
-    if (!existing) {
-      map.set(s.presenter.id, {
-        speaker: {
-          id: s.presenter.id,
-          nom: s.presenter.nom,
-          prenom: s.presenter.prenom,
-          affiliation: s.presenter.affiliation,
-          avatarUrl: s.presenter.avatarUrl,
-          role: priority.role,
-          sessionCount: 1,
-        },
-        topScore: priority.score,
-      });
-    } else {
-      existing.speaker.sessionCount += 1;
-      if (priority.score > existing.topScore) {
-        existing.speaker.role = priority.role;
-        existing.topScore = priority.score;
-      }
-    }
-  }
-
-  return Array.from(map.values())
-    .sort((a, b) => b.topScore - a.topScore)
-    .map((e) => e.speaker);
-}
-
-/* ── Composant ─────────────────────────────────────────────────────────── */
+/*  Composant Principal  */
 
 interface SpeakersSectionProps {
   speakers: Speaker[];
@@ -95,7 +40,7 @@ interface SpeakersSectionProps {
   limit?: number;
 }
 
-export function SpeakersSection({
+export function SpeakersSections({
   speakers,
   limit = 4,
 }: SpeakersSectionProps) {
@@ -146,8 +91,121 @@ export function SpeakersSection({
     </section>
   );
 }
+export function SpeakersSection({
+  speakers,
+  limit = 4,
+}: SpeakersSectionProps) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-/* ── Sub-component : carte intervenant ─────────────────────────────────── */
+  const featured = speakers.slice(0, limit);
+  const hasMore = speakers.length > limit;
+
+  // Bloque le scroll du body quand le modal est ouvert (Bonne pratique UX)
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isModalOpen]);
+
+  return (
+    <>
+      <section
+        id="sec-speakers"
+        className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm"
+      >
+        <h2 className="mb-5 flex items-center gap-2 font-heading text-xl font-bold text-slate-900">
+          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-purple-100">
+            <Users className="h-4 w-4 text-purple-700" />
+          </span>
+          Intervenants
+          {speakers.length > 0 && (
+            <span className="ml-1 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-700">
+              {speakers.length}
+            </span>
+          )}
+        </h2>
+
+        {speakers.length === 0 ? (
+          <div className="py-8 text-center text-sm text-slate-400">
+            <Users className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+            Les intervenants seront annoncés prochainement.
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {featured.map((s) => (
+                <SpeakerCard key={s.id} speaker={s} />
+              ))}
+            </div>
+
+            {hasMore && (
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-blue-600 transition-colors hover:text-blue-700 hover:underline"
+              >
+                Voir tous les intervenants ({speakers.length})
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            )}
+          </>
+        )}
+      </section>
+
+      {/*  MODAL TOUS LES INTERVENANTS ─ */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div 
+            className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl animate-in zoom-in-95 duration-200"
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Header du modal */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <h3 className="flex items-center gap-2 font-heading text-lg font-bold text-slate-900">
+                <Users className="h-5 w-5 text-purple-600" />
+                Tous les intervenants
+                <span className="rounded-full bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-700">
+                  {speakers.length}
+                </span>
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                aria-label="Fermer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Corps du modal (Scrollable) */}
+            <div className="overflow-y-auto p-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {speakers.map((s) => (
+                  <SpeakerCard key={s.id} speaker={s} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Calque pour fermer au clic en dehors (optionnel mais pratique) */}
+          <div 
+            className="absolute inset-0 -z-10" 
+            onClick={() => setIsModalOpen(false)}
+            aria-hidden="true"
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+/*  Sub-component : carte intervenant  */
 
 /** Palette de dégradés pour les avatars fallback — chaîne stable sur `id`. */
 const AVATAR_GRADIENTS = [
@@ -173,7 +231,7 @@ function hashString(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) {
     h = (h << 5) - h + s.charCodeAt(i);
-    h |= 0;
+    h |= 0; // Convert to 32bit integer
   }
   return Math.abs(h);
 }
@@ -182,6 +240,7 @@ function SpeakerCard({ speaker }: { speaker: Speaker }) {
   const initials =
     (speaker.prenom?.[0] ?? "").toUpperCase() +
     (speaker.nom?.[0] ?? "").toUpperCase();
+    
   const gradient =
     AVATAR_GRADIENTS[hashString(speaker.id) % AVATAR_GRADIENTS.length];
   const roleTone = ROLE_TONES[speaker.role] ?? "text-slate-600";

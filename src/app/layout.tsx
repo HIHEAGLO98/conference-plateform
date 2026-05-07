@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Sora } from "next/font/google";
+import { Toaster } from "sonner";
 
 import "./globals.css";
 
@@ -44,7 +45,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr" className={`${inter.variable} ${sora.variable}`}>
-      <body className="min-h-screen bg-slate-50 antialiased">{children}</body>
+      <body className="min-h-screen bg-slate-50 antialiased">{children}
+        <Toaster
+          position="bottom-right"
+          richColors
+          closeButton
+          duration={4500}
+          toastOptions={{
+            style: {
+              fontFamily: "var(--font-sans)",
+              borderRadius: "14px",
+              fontSize: "13px",
+            },
+          }}
+        />
+      </body>
     </html>
   );
 }

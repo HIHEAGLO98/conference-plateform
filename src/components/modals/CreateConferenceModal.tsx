@@ -12,22 +12,20 @@ import {
   MapPin,
   Monitor,
   Users,
+  AlertTriangle,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { ModalShell, useCloseModal } from "./ModalShell";
+import { createConference } from "@/actions/createConference";
+import { createConferenceSchema } from "@/lib/validators/conference";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { toast } from "sonner";
+
 
 /* 
- * CreateConferenceModal — wizard 3 étapes.
- *
- * Stratégie :
- *   - `useState` pour le step courant (1..3) + payload form
- *   - L'indicateur de progression (`StepIndicator`) est un sous-composant pur
- *   - Validation minimale par étape avant de laisser passer au suivant
- *     (titre+thème+description obligatoires sur step 1, dates sur step 2)
- *   - Submit final → placeholder (TODO: brancher server action Prisma)
- *
- * Couleur d'accent : teal (identité organisateur).
+ * CreateConferenceModal - wizard 3 étapes.
+ * Validation : Zod côté client par étape + validation serveur dans l'action.
  *  */
 
 type Step = 1 | 2 | 3;
@@ -108,42 +106,58 @@ export function CreateConferenceModal() {
   const close = useCloseModal();
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState<FormState>(initialForm);
-  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>(
-    {}
-  );
+  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
+    setServerError(null);
   };
 
+  /**
+   * Validation Zod par étape - on extrait uniquement les champs de l'étape
+   * courante du schéma global et on affiche les erreurs correspondantes.
+   */
   const validateStep = (s: Step): boolean => {
-    const next: Partial<Record<keyof FormState, string>> = {};
-    if (s === 1) {
-      if (!form.titre.trim()) next.titre = "Le titre est requis";
-      if (!form.theme) next.theme = "Choisissez une thématique";
-      if (!form.description.trim())
-        next.description = "Ajoutez une description";
-    } else if (s === 2) {
-      if (!form.dateDebut) next.dateDebut = "Requis";
-      if (!form.dateFin) next.dateFin = "Requis";
-      if (
-        form.dateDebut &&
-        form.dateFin &&
-        new Date(form.dateFin) < new Date(form.dateDebut)
-      ) {
-        next.dateFin = "La fin doit être après le début";
-      }
-      if (!form.villePays.trim()) next.villePays = "Ville et pays requis";
-    } else {
-      if (form.langues.length === 0)
-        next.langues = "Sélectionnez au moins une langue";
-      if (!form.capaciteMax || form.capaciteMax < 1)
-        next.capaciteMax = "Capacité invalide";
+    // Champs par étape
+    const stepFields: Record<Step, (keyof FormState)[]> = {
+      1: ["titre", "theme", "description"],
+      2: ["dateDebut", "dateFin", "villePays"],
+      3: ["capaciteMax"],
+    };
+
+    // Payload partiel - on enrichit les valeurs manquantes pour passer le
+    // safeParse global sans déclencher d'erreurs sur les autres étapes.
+    const payload = {
+      ...form,
+      // Valeurs par défaut pour les champs pas encore saisis
+      villePays: form.villePays || "placeholder, placeholder",
+      dateDebut: form.dateDebut || new Date().toISOString(),
+      dateFin: form.dateFin || new Date().toISOString(),
+    };
+
+    const result = createConferenceSchema.safeParse(payload);
+    const fieldErrs = result.success
+      ? {}
+      : (result.error.flatten().fieldErrors as Record<string, string[]>);
+
+    const newErrors: Partial<Record<keyof FormState, string>> = {};
+    for (const field of stepFields[s]) {
+      const msg = fieldErrs[field]?.[0];
+      if (msg) newErrors[field] = msg;
     }
-    setErrors(next);
-    return Object.keys(next).length === 0;
+
+    // Validation cross-field pour l'étape 2
+    if (s === 2 && form.dateDebut && form.dateFin) {
+      if (new Date(form.dateFin) < new Date(form.dateDebut)) {
+        newErrors.dateFin = "La date de fin doit être après la date de début";
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const goNext = () => {
@@ -157,14 +171,64 @@ export function CreateConferenceModal() {
 
   const handleSubmit = () => {
     if (!validateStep(3)) return;
+
     startTransition(async () => {
-      // TODO: brancher une server action `createConference(form)` qui :
-      //   1. génère le slug unique
-      //   2. insère la conference (Prisma)
-      //   3. log l'audit CREATE_CONFERENCE
-      //   4. revalidate `/dashboard`
-      // Placeholder pour l'instant : simulation d'un délai puis fermeture.
-      await new Promise((r) => setTimeout(r, 1400));
+      setServerError(null);
+
+      const toastId = toast.loading("Création en cours…");
+
+      const result = await createConference({
+        titre: form.titre,
+        shortName: form.shortName || undefined,
+        theme: form.theme,
+        description: form.description,
+        organisation: form.organisation || undefined,
+        villePays: form.villePays,
+        lieu: form.lieu || undefined,
+        format: form.format,
+        dateDebut: form.dateDebut,
+        dateFin: form.dateFin,
+        capaciteMax: form.capaciteMax,
+        seuilAlerte: form.seuilAlerte,
+       
+        visibility: form.visibility,
+        publish: form.publish,
+        submissionDeadline: form.submissionDeadline || undefined,
+        notificationDate: form.notificationDate || undefined,
+      });
+
+      if (!result.success) {
+         toast.error("Échec de la création", {
+          id: toastId,
+          description: result.error,
+          duration: 6000,
+        });
+        // Erreurs de champ renvoyées par le serveur → les afficher
+        if (result.fieldErrors) {
+          const mapped: Partial<Record<keyof FormState, string>> = {};
+          for (const [k, msgs] of Object.entries(result.fieldErrors)) {
+            mapped[k as keyof FormState] = msgs[0];
+          }
+          setErrors(mapped);
+          // Revenir à l'étape 1 si les erreurs concernent des champs de début
+          if (mapped.titre || mapped.theme || mapped.description) setStep(1);
+          else if (mapped.dateDebut || mapped.dateFin || mapped.villePays) setStep(2);
+        }
+        setServerError(result.error);
+        return;
+      }
+       toast.success(
+        form.publish === "NOW" ? "Conférence publiée !" : "Brouillon enregistré",
+        {
+          id: toastId,
+          description:
+            form.publish === "NOW"
+              ? `« ${form.titre} » est maintenant visible sur le portail.`
+              : `« ${form.titre} » a été sauvegardée. Publiez-la quand vous êtes prêt.`,
+          duration: 5000,
+        }
+      );
+
       close();
     });
   };
@@ -229,6 +293,14 @@ export function CreateConferenceModal() {
         </>
       }
     >
+      {/* Erreur serveur globale */}
+      {serverError && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-rose-600" />
+          <p className="text-sm text-rose-700">{serverError}</p>
+        </div>
+      )}
+
       {step === 1 && <Step1 form={form} errors={errors} update={update} />}
       {step === 2 && <Step2 form={form} errors={errors} update={update} />}
       {step === 3 && <Step3 form={form} errors={errors} update={update} />}
@@ -236,9 +308,7 @@ export function CreateConferenceModal() {
   );
 }
 
-/* 
- * Step indicator
- *  */
+//  Step indicator 
 
 function StepIndicator({ step }: { step: Step }) {
   const steps: Step[] = [1, 2, 3];
@@ -277,9 +347,7 @@ function StepIndicator({ step }: { step: Step }) {
   );
 }
 
-/* 
- * Step 1 — Informations générales
- *  */
+//  Step props 
 
 interface StepProps {
   form: FormState;
@@ -287,14 +355,12 @@ interface StepProps {
   update: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
 }
 
+//  Step 1 — Informations générales 
+
 function Step1({ form, errors, update }: StepProps) {
   return (
     <div className="space-y-4">
-      <Field
-        label="Titre de la conférence"
-        required
-        error={errors.titre}
-      >
+      <Field label="Titre de la conférence" required error={errors.titre}>
         <input
           type="text"
           value={form.titre}
@@ -304,10 +370,7 @@ function Step1({ form, errors, update }: StepProps) {
         />
       </Field>
 
-      <Field
-        label="Acronyme / Sigle"
-        hint="Utilisé comme identifiant court dans l'interface."
-      >
+      <Field label="Acronyme / Sigle" hint="Identifiant court dans l'interface.">
         <input
           type="text"
           value={form.shortName}
@@ -317,35 +380,24 @@ function Step1({ form, errors, update }: StepProps) {
         />
       </Field>
 
-      <Field
-        label="Thématique principale"
-        required
-        error={errors.theme}
-      >
-        <select
+      <Field label="Thématique principale" required error={errors.theme}>
+        <SearchableSelect
+          options={THEMES.map((t) => ({ value: t, label: t }))}
           value={form.theme}
-          onChange={(e) => update("theme", e.target.value)}
-          className="form-input-org"
-        >
-          <option value="">— Choisir une thématique —</option>
-          {THEMES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => update("theme", v)}
+          placeholder="Choisir une thématique"
+          searchPlaceholder="Rechercher une thématique…"
+          emptyMessage="Aucune thématique trouvée"
+          clearable
+        />
       </Field>
 
-      <Field
-        label="Description courte"
-        required
-        error={errors.description}
-      >
+      <Field label="Description courte" required error={errors.description}>
         <textarea
           value={form.description}
           onChange={(e) => update("description", e.target.value)}
           rows={3}
-          placeholder="Décrivez brièvement la conférence (objectif, public cible, domaines couverts…)"
+          placeholder="Objectif, public cible, domaines couverts…"
           className="form-input-org resize-y"
         />
       </Field>
@@ -365,9 +417,7 @@ function Step1({ form, errors, update }: StepProps) {
   );
 }
 
-/* 
- * Step 2 — Dates & Lieu
- *  */
+//  Step 2 — Dates & Lieu 
 
 function Step2({ form, errors, update }: StepProps) {
   return (
@@ -417,12 +467,17 @@ function Step2({ form, errors, update }: StepProps) {
         </div>
       </Field>
 
-      <Field label="Ville & Pays" required error={errors.villePays}>
+      <Field
+        label="Ville & Pays"
+        required
+        error={errors.villePays}
+        hint='Format : "Ville, Pays" ex: Paris, France'
+      >
         <input
           type="text"
           value={form.villePays}
           onChange={(e) => update("villePays", e.target.value)}
-          placeholder="Ex: Paris, France"
+          placeholder="Paris, France"
           className="form-input-org"
         />
       </Field>
@@ -432,7 +487,7 @@ function Step2({ form, errors, update }: StepProps) {
           type="text"
           value={form.lieu}
           onChange={(e) => update("lieu", e.target.value)}
-          placeholder="Ex: Cité des Sciences, Grande Salle"
+          placeholder="Cité des Sciences, Grande Salle"
           className="form-input-org"
         />
       </Field>
@@ -440,6 +495,9 @@ function Step2({ form, errors, update }: StepProps) {
       <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
         <p className="mb-2 text-xs font-semibold text-amber-700">
           Dates importantes de soumission
+          <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-normal text-amber-600">
+            Fonctionnalité à venir (migration schema requise)
+          </span>
         </p>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -497,9 +555,7 @@ function FormatCard({
           : "border-slate-200 text-slate-700 hover:border-teal-400"
       )}
     >
-      <span className={active ? "text-teal-500" : "text-slate-400"}>
-        {icon}
-      </span>
+      <span className={active ? "text-teal-500" : "text-slate-400"}>{icon}</span>
       <span className="text-xs font-semibold">
         {label} {active && "✓"}
       </span>
@@ -507,9 +563,7 @@ function FormatCard({
   );
 }
 
-/* 
- * Step 3 — Paramètres & Publication
- *  */
+//  Step 3 — Paramètres & Publication 
 
 function Step3({ form, errors, update }: StepProps) {
   const toggleLang = (id: string) => {
@@ -531,9 +585,7 @@ function Step3({ form, errors, update }: StepProps) {
           <input
             type="number"
             value={form.capaciteMax}
-            onChange={(e) =>
-              update("capaciteMax", parseInt(e.target.value, 10) || 0)
-            }
+            onChange={(e) => update("capaciteMax", parseInt(e.target.value, 10) || 0)}
             min={1}
             className="form-input-org"
           />
@@ -542,9 +594,7 @@ function Step3({ form, errors, update }: StepProps) {
           <input
             type="number"
             value={form.seuilAlerte}
-            onChange={(e) =>
-              update("seuilAlerte", parseInt(e.target.value, 10) || 0)
-            }
+            onChange={(e) => update("seuilAlerte", parseInt(e.target.value, 10) || 0)}
             min={0}
             max={100}
             className="form-input-org"
@@ -552,7 +602,10 @@ function Step3({ form, errors, update }: StepProps) {
         </Field>
       </div>
 
-      <Field label="Langues acceptées" required error={errors.langues}>
+      {/* <Field
+        label="Langues acceptées"
+        hint="Non persisté en base pour l'instant — migration schema requise."
+      >
         <div className="flex flex-wrap gap-2">
           {LANGUAGES.map((lang) => {
             const active = form.langues.includes(lang.id);
@@ -574,7 +627,7 @@ function Step3({ form, errors, update }: StepProps) {
             );
           })}
         </div>
-      </Field>
+      </Field> */}
 
       <Field label="Visibilité">
         <div className="grid grid-cols-2 gap-3">
@@ -607,9 +660,7 @@ function Step3({ form, errors, update }: StepProps) {
               onChange={() => update("publish", "DRAFT")}
               className="accent-teal-600"
             />
-            <span className="text-sm text-slate-700">
-              Enregistrer en brouillon
-            </span>
+            <span className="text-sm text-slate-700">Enregistrer en brouillon</span>
           </label>
           <label className="flex cursor-pointer items-center gap-2">
             <input
@@ -619,9 +670,7 @@ function Step3({ form, errors, update }: StepProps) {
               onChange={() => update("publish", "NOW")}
               className="accent-teal-600"
             />
-            <span className="text-sm text-slate-700">
-              Publier immédiatement
-            </span>
+            <span className="text-sm text-slate-700">Publier immédiatement</span>
           </label>
         </div>
       </Field>
@@ -653,9 +702,7 @@ function VisibilityCard({
       onClick={onClick}
       className={cn(
         "flex items-start gap-3 rounded-xl border-2 p-3 text-left transition-all",
-        active
-          ? "border-teal-500 bg-teal-50"
-          : "border-slate-200 hover:border-slate-300"
+        active ? "border-teal-500 bg-teal-50" : "border-slate-200 hover:border-slate-300"
       )}
     >
       <span
@@ -668,9 +715,7 @@ function VisibilityCard({
       </span>
       <div className="flex-1">
         <div className="flex items-center gap-1.5">
-          <span className={active ? "text-teal-700" : "text-slate-500"}>
-            {icon}
-          </span>
+          <span className={active ? "text-teal-700" : "text-slate-500"}>{icon}</span>
           <p className="text-sm font-semibold text-slate-800">{title}</p>
         </div>
         <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>
@@ -679,9 +724,7 @@ function VisibilityCard({
   );
 }
 
-/* 
- * Champs utilitaires (label + hint + erreur) + styles globaux inputs
- *  */
+//  Utilitaires 
 
 function Field({
   label,
@@ -708,12 +751,6 @@ function Field({
   );
 }
 
-/**
- * Inline <style> pour la classe `.form-input-org` — évite de polluer le
- * globals.css avec des styles propres au dashboard organisateur.
- * Dupliqué par step pour que le style s'applique même si un step est
- * rendu seul. React gère le dedup naturellement.
- */
 function FormInputStyles() {
   return (
     <style jsx global>{`

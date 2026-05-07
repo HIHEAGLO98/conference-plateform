@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import {
+  AlertTriangle,
   Calendar,
   Check,
   Info,
@@ -12,30 +13,25 @@ import {
 } from "lucide-react";
 
 import { ModalShell, useCloseModal } from "./ModalShell";
+import { createSession } from "@/actions/createConference";
+import { createSessionSchema } from "@/lib/validators/conference";
+import { truncateString } from "@/utils/stringUtils";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { toast } from "sonner";
+
 
 /* 
- * CreateSessionModal — modal création d'une session rattachée à une conférence.
- *
- * Particularités :
- *   - La conférence parente est OBLIGATOIRE. Si un `?conf=<id>` est présent
- *     dans l'URL, on la pré-sélectionne (ex: l'organisateur clique sur
- *     "+ Session" depuis une carte conférence de la hiérarchie).
- *   - Les horaires sont des `datetime-local` → on laisse le navigateur gérer
- *     le format.
- *   - Intervenants = string libre (parsée par virgule côté submit).
- *   - Capacité optionnelle (hérite de la conférence parente si laissée vide).
- *
- * Couleur d'accent : teal (identité organisateur).
+ * CreateSessionModal  création d'une session rattachée à une conférence.
+ 
  *  */
 
+// Aligné sur SessionType enum Prisma
 const SESSION_TYPES = [
   { id: "KEYNOTE", label: "Keynote", desc: "Conférence invitée" },
   { id: "WORKSHOP", label: "Workshop", desc: "Atelier pratique" },
-  { id: "PLENARY", label: "Plénière", desc: "Session principale" },
+  { id: "TALK", label: "Talk / Présentation", desc: "Présentation scientifique" },
   { id: "PANEL", label: "Panel / Table ronde", desc: "Discussion" },
-  { id: "ARTICLES", label: "Articles", desc: "Présentations scientifiques" },
   { id: "POSTER", label: "Session poster", desc: "Présentation affiches" },
-  { id: "ROUND_TABLE", label: "Table ronde", desc: "Discussion ouverte" },
   { id: "BREAK", label: "Pause / Networking", desc: "Break café ou déjeuner" },
 ] as const;
 
@@ -51,7 +47,6 @@ export interface CreateSessionConferenceOption {
 }
 
 interface CreateSessionModalProps {
-  /** Liste des conférences de l'organisateur (pour le select parent). */
   conferences: CreateSessionConferenceOption[];
 }
 
@@ -62,7 +57,7 @@ interface FormState {
   salle: string;
   horaireDebut: string;
   horaireFin: string;
-  capacite: string; // string pour permettre "" ; parsé au submit
+  capacite: string;
   seuilAlerte: string;
   intervenants: string;
   description: string;
@@ -71,7 +66,7 @@ interface FormState {
 const initialForm: FormState = {
   conferenceId: "",
   titre: "",
-  type: "ARTICLES",
+  type: "TALK",
   salle: "",
   horaireDebut: "",
   horaireFin: "",
@@ -82,8 +77,6 @@ const initialForm: FormState = {
 };
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
-
-
 
 export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
   const searchParams = useSearchParams();
@@ -100,8 +93,8 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
         : conferences[0]?.id ?? "",
   }));
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [serverError, setServerError] = useState<string | null>(null);
 
-  // Si l'URL change et qu'un nouveau `conf` est pré-sélectionné, on resynchronise
   useEffect(() => {
     if (!preselectConfId) return;
     if (!conferences.some((c) => c.id === preselectConfId)) return;
@@ -118,50 +111,75 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
     setErrors((e) => ({ ...e, [key]: undefined }));
+    setServerError(null);
   };
 
+  /** Validation Zod côté client avant appel serveur */
   const validate = (): boolean => {
-    const next: FieldErrors = {};
-    if (!form.conferenceId) next.conferenceId = "Sélectionnez une conférence.";
-    if (!form.titre.trim()) next.titre = "Le titre est obligatoire.";
-    if (!form.horaireDebut) next.horaireDebut = "Date de début requise.";
-    if (!form.horaireFin) next.horaireFin = "Date de fin requise.";
-    if (
-      form.horaireDebut &&
-      form.horaireFin &&
-      new Date(form.horaireFin) <= new Date(form.horaireDebut)
-    ) {
-      next.horaireFin = "La fin doit être postérieure au début.";
+    const result = createSessionSchema.safeParse(form);
+    if (result.success) {
+      setErrors({});
+      return true;
     }
-    if (form.capacite && Number.isNaN(Number(form.capacite))) {
-      next.capacite = "La capacité doit être un nombre.";
+    const fieldErrs = result.error.flatten().fieldErrors as Record<string, string[]>;
+    const mapped: FieldErrors = {};
+    for (const [k, msgs] of Object.entries(fieldErrs)) {
+      mapped[k as keyof FormState] = msgs[0];
     }
-    if (
-      form.seuilAlerte &&
-      (Number.isNaN(Number(form.seuilAlerte)) ||
-        Number(form.seuilAlerte) < 0 ||
-        Number(form.seuilAlerte) > 100)
-    ) {
-      next.seuilAlerte = "Seuil entre 0 et 100.";
-    }
-    setErrors(next);
-    return Object.keys(next).length === 0;
+    setErrors(mapped);
+    return false;
   };
 
   const handleSubmit = () => {
     if (!validate()) return;
+
     startTransition(async () => {
-      // TODO: brancher le server action Prisma — création de la Session,
-      // rattachement à la Conference, audit log.
-      // Les intervenants sont parsés : split(",") → trim() → filter(Boolean)
-      await new Promise((r) => setTimeout(r, 1200));
+      setServerError(null);
+
+      const toastId = toast.loading("Création de la session…");
+
+      const result = await createSession({
+        conferenceId: form.conferenceId,
+        titre: form.titre,
+        type: form.type as import("@/lib/validators/conference").CreateSessionInput["type"],
+        salle: form.salle || undefined,
+        horaireDebut: form.horaireDebut,
+        horaireFin: form.horaireFin,
+        capacite: form.capacite || undefined,
+        seuilAlerte: form.seuilAlerte || undefined,
+        intervenants: form.intervenants || undefined,
+        description: form.description || undefined,
+      });
+
+      if (!result.success) {
+         toast.error("Échec de la création", {
+          id: toastId,
+          description: result.error,
+          duration: 6000,
+        });
+        if (result.fieldErrors) {
+          const mapped: FieldErrors = {};
+          for (const [k, msgs] of Object.entries(result.fieldErrors)) {
+            mapped[k as keyof FormState] = msgs[0];
+          }
+          setErrors(mapped);
+        }
+        setServerError(result.error);
+        return;
+      }
+      toast.success("Session créée !", {
+        id: toastId,
+        description: selectedConf
+          ? `« ${form.titre} » a été ajoutée à ${selectedConf.shortName ?? selectedConf.titre}.`
+          : `« ${form.titre} » a été créée avec succès.`,
+        duration: 5000,
+      });
+
       close();
     });
   };
 
   const emptyConfList = conferences.length === 0;
-
-  /*  Render  */
 
   return (
     <ModalShell
@@ -200,12 +218,19 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
     >
       <FormInputStyles />
 
-      {/* Empty-state : pas de conf dispo pour rattacher la session */}
+      {/* Erreur serveur */}
+      {serverError && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-rose-600" />
+          <p className="text-sm text-rose-700">{serverError}</p>
+        </div>
+      )}
+
       {emptyConfList ? (
         <EmptyNoConference />
       ) : (
         <div className="space-y-6">
-          {/*  Conférence parente (obligatoire)  */}
+          {/* Conférence parente */}
           <section className="rounded-2xl border-2 border-teal-200 bg-teal-50/50 p-5">
             <div className="mb-3 flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-100 text-teal-700">
@@ -219,22 +244,20 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
               </span>
             </div>
 
-            <Field
-              label="Sélectionner la conférence"
-              required
-              error={errors.conferenceId}
-            >
-              <select
-                value={form.conferenceId}
-                onChange={(e) => update("conferenceId", e.target.value)}
-                className="form-input-org"
-              >
-                {conferences.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.shortName ? `${c.shortName} — ${c.titre}` : c.titre}
-                  </option>
-                ))}
-              </select>
+            <Field label="Sélectionner la conférence" required error={errors.conferenceId}>
+              <SearchableSelect
+                  options={conferences.map((c) => ({
+                    value: c.id,
+                    label: c.shortName ? `${c.shortName} - ${c.titre}` : c.titre,
+                    // Le sous-label affiche les dates + ville sous le nom de la conf
+                    sublabel: `${formatDateRange(c.dateDebut, c.dateFin)} · ${c.ville}`,
+                  }))}
+                  value={form.conferenceId}
+                  onChange={(v) => update("conferenceId", v)}
+                  placeholder="Sélectionner une conférence"
+                  searchPlaceholder="Rechercher par nom, sigle…"
+                  emptyMessage="Aucune conférence trouvée"
+                />
             </Field>
 
             {selectedConf && (
@@ -251,7 +274,7 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
             )}
           </section>
 
-          {/*  Informations de la session  */}
+          {/* Informations de la session */}
           <section className="space-y-4">
             <SectionTitle>Informations de la session</SectionTitle>
 
@@ -267,19 +290,16 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Type de session">
-                <select
-                  value={form.type}
-                  onChange={(e) =>
-                    update("type", e.target.value as SessionTypeValue)
-                  }
-                  className="form-input-org"
-                >
-                  {SESSION_TYPES.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label} — {t.desc}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                    options={SESSION_TYPES.map((t) => ({
+                      value: t.id,
+                      label: t.label,
+                      sublabel: t.desc,
+                    }))}
+                    value={form.type}
+                    onChange={(v) => update("type", v as SessionTypeValue)}
+                    searchPlaceholder="Rechercher un type…"
+                  />
               </Field>
 
               <Field label="Salle">
@@ -287,18 +307,14 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
                   type="text"
                   value={form.salle}
                   onChange={(e) => update("salle", e.target.value)}
-                  placeholder="ex. Amphi Saint-Exupéry"
+                  placeholder="Amphi Saint-Exupéry"
                   className="form-input-org"
                 />
               </Field>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label="Début de la session"
-                required
-                error={errors.horaireDebut}
-              >
+              <Field label="Début de la session" required error={errors.horaireDebut}>
                 <input
                   type="datetime-local"
                   value={form.horaireDebut}
@@ -306,11 +322,7 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
                   className="form-input-org"
                 />
               </Field>
-              <Field
-                label="Fin de la session"
-                required
-                error={errors.horaireFin}
-              >
+              <Field label="Fin de la session" required error={errors.horaireFin}>
                 <input
                   type="datetime-local"
                   value={form.horaireFin}
@@ -321,25 +333,26 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
             </div>
           </section>
 
-          {/*  Capacité  */}
+          {/* Capacité */}
           <section className="space-y-4">
             <SectionTitle>Capacité & Alerte</SectionTitle>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Capacité max."
-                hint="Laisser vide pour hériter de la conférence"
+                hint={
+                  selectedConf
+                    ? "Vide - hérite de la conférence parente"
+                    : "ex. 150"
+                }
                 error={errors.capacite}
               >
                 <div className="relative">
-                  <Users className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     type="number"
-                    min={0}
+                    min={1}
                     value={form.capacite}
                     onChange={(e) => update("capacite", e.target.value)}
-                    placeholder={
-                      selectedConf ? "— hérite de la conf" : "ex. 150"
-                    }
+                    placeholder="hérite de la conférence parente"
                     className="form-input-org pl-9"
                   />
                 </div>
@@ -362,12 +375,12 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
             </div>
           </section>
 
-          {/*  Intervenants  */}
+          {/* Intervenants */}
           <section className="space-y-4">
             <SectionTitle>Intervenants</SectionTitle>
             <Field
               label="Intervenants"
-              hint="Séparez plusieurs noms par une virgule — ex. : Jean Dupont, Marie Curie"
+              hint="Séparez plusieurs noms par une virgule - ex. : Jean Dupont, Marie Curie"
             >
               <input
                 type="text"
@@ -379,12 +392,12 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
             </Field>
           </section>
 
-          {/*  Description  */}
+          {/* Description */}
           <section className="space-y-4">
             <SectionTitle>Description</SectionTitle>
             <Field
               label="Description (facultatif)"
-              hint="Courte présentation visible sur la page publique de la conférence"
+              hint="Courte présentation visible sur la page publique"
             >
               <textarea
                 rows={4}
@@ -396,7 +409,7 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
             </Field>
           </section>
 
-          {/*  Confirmation visuelle  */}
+          {/* Récap conférence parente */}
           {selectedConf && (
             <div className="flex items-start gap-3 rounded-xl border border-teal-100 bg-teal-50/60 p-4">
               <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-teal-600" />
@@ -405,8 +418,8 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
                 <span className="font-semibold text-teal-800">
                   {selectedConf.shortName ?? selectedConf.titre}
                 </span>{" "}
-                ({formatDateRange(selectedConf.dateDebut, selectedConf.dateFin)}{" "}
-                · {selectedConf.ville}).
+                ({formatDateRange(selectedConf.dateDebut, selectedConf.dateFin)} ·{" "}
+                {selectedConf.ville}).
               </div>
             </div>
           )}
@@ -416,15 +429,11 @@ export function CreateSessionModal({ conferences }: CreateSessionModalProps) {
   );
 }
 
-/* 
- * Sub-components
- *  */
+//  Sub-components 
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="font-heading text-sm font-bold text-slate-900">
-      {children}
-    </h3>
+    <h3 className="font-heading text-sm font-bold text-slate-900">{children}</h3>
   );
 }
 
@@ -448,9 +457,7 @@ function Field({ label, required, hint, error, children }: FieldProps) {
         <span className="mt-1 block text-xs text-slate-400">{hint}</span>
       )}
       {error && (
-        <span className="mt-1 block text-xs font-medium text-rose-600">
-          {error}
-        </span>
+        <span className="mt-1 block text-xs font-medium text-rose-600">{error}</span>
       )}
     </label>
   );
@@ -467,16 +474,14 @@ function EmptyNoConference() {
           Aucune conférence disponible
         </p>
         <p className="mt-1 text-xs text-slate-500">
-          Créez d'abord une conférence avant de pouvoir y rattacher une session.
+          Créez d&apos;abord une conférence avant de pouvoir y rattacher une session.
         </p>
       </div>
     </div>
   );
 }
 
-/* 
- * Utils
- * ────────────────────────────────────────────────────────────────────────── */
+//  Utils 
 
 function formatDateRange(start: Date, end: Date): string {
   const fmt = new Intl.DateTimeFormat("fr-FR", {
@@ -492,11 +497,6 @@ function formatDateRange(start: Date, end: Date): string {
   return `${fmt.format(start)} → ${fmt.format(end)}`;
 }
 
-/* 
- * Styles scopés pour tous les inputs du modal (même look & feel que le wizard
- * de création de conférence). On garde un teal-500 sur le focus.
- *  */
-
 function FormInputStyles() {
   return (
     <style jsx global>{`
@@ -508,21 +508,13 @@ function FormInputStyles() {
         padding: 0.625rem 0.875rem;
         font-size: 0.875rem;
         color: rgb(15 23 42);
-        transition:
-          border-color 150ms ease,
-          box-shadow 150ms ease;
+        transition: border-color 150ms ease, box-shadow 150ms ease;
       }
-      .form-input-org::placeholder {
-        color: rgb(148 163 184);
-      }
+      .form-input-org::placeholder { color: rgb(148 163 184); }
       .form-input-org:focus {
         outline: none;
-        border-color: rgb(20 184 166); /* teal-500 */
-        box-shadow: 0 0 0 3px rgb(153 246 228 / 0.45); /* teal-200 */
-      }
-      .form-input-org:disabled {
-        background-color: rgb(248 250 252);
-        color: rgb(148 163 184);
+        border-color: rgb(20 184 166);
+        box-shadow: 0 0 0 3px rgb(153 246 228 / 0.45);
       }
       select.form-input-org {
         appearance: none;

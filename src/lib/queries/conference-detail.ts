@@ -30,6 +30,7 @@ export const conferenceDetailSelect = {
   websiteUrl: true,
   dateDebut: true,
   dateFin: true,
+  format: true,
   capaciteMax: true,
   statut: true,
   publishedAt: true,
@@ -54,15 +55,7 @@ export const conferenceDetailSelect = {
       horaireDebut: true,
       horaireFin: true,
       capacite: true,
-      presenter: {
-        select: {
-          id: true,
-          nom: true,
-          prenom: true,
-          affiliation: true,
-          avatarUrl: true,
-        },
-      },
+      intervenants: true,
     },
   },
   faqs: {

@@ -32,7 +32,7 @@ export const authConfig = {
     /** Guard simple pour le middleware. On raffinera par rôle plus tard. */
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      const protectedPrefixes = ["/dashboard", "/participant", "/conferencier", "/organisateur", "/admin"];
+      const protectedPrefixes = ["/dashboard", "/participant", "/conferencier", "/organizer", "/admin"];
       const isProtected = protectedPrefixes.some((p) => nextUrl.pathname.startsWith(p));
       const isAuthPage = ["/login", "/register"].includes(nextUrl.pathname);
 

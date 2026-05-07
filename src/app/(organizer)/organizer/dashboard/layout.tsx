@@ -25,7 +25,7 @@ export default async function OrganizerDashboardLayout({
   // 1. Garde d'accès 
   const session = await auth();
   if (!session?.user?.id) {
-    redirect("/login?callbackUrl=/dashboard");
+    redirect("/login?callbackUrl=/organizer/dashboard");
   }
 
   const userRole = session.user.role;
@@ -43,14 +43,14 @@ export default async function OrganizerDashboardLayout({
   ]);
 
   if (!profile) {
-    // Session valide mais user supprimé → on force un re-login propre
+    // Session valide mais user supprimé on force un re-login propre
     redirect("/login");
   }
 
   // Path courant (pour highlight sidebar) — lu via le header `x-pathname`
-  // injecté par le middleware Next.js. Fallback: /dashboard.
+  // injecté par le middleware Next.js. Fallback: /organizer/dashboard.
   const hdrs = await headers();
-  const currentPath = hdrs.get("x-pathname") ?? "/dashboard";
+  const currentPath = hdrs.get("x-pathname") ?? "/organizer/dashboard";
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -69,7 +69,7 @@ export default async function OrganizerDashboardLayout({
         >
           <OrganizerHeader
             breadcrumb={[
-              { label: "Espace organisateur", href: "/dashboard" },
+              { label: "Espace organisateur", href: "/organizer/dashboard" },
               { label: "Vue d'ensemble" },
             ]}
             user={profile}

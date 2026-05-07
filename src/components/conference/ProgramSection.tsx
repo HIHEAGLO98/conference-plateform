@@ -11,6 +11,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import type { ConferenceSessionItem } from "@/lib/queries/conference-detail";
+import { Speaker } from "@/lib/utils/speakers";
 
 /* 
  * Programme - onglets "Jour 1 / Jour 2 / ..." + timeline verticale.
@@ -244,14 +245,6 @@ export function ProgramSection({
                   <p className="text-sm font-semibold text-slate-900">
                     {s.titre}
                   </p>
-
-                  {s.presenter && (
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {s.presenter.prenom} {s.presenter.nom}
-                      {s.presenter.affiliation &&
-                        ` · ${s.presenter.affiliation}`}
-                    </p>
-                  )}
 
                   {sessionType !== "BREAK" && (
                     <div className="mt-2 flex flex-wrap items-center gap-3">
