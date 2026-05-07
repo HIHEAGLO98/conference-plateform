@@ -18,11 +18,11 @@ import { loginSchema, type LoginInput } from "@/lib/validators/auth";
 import { loginUser } from "@/actions/auth";
 import { cn } from "@/lib/utils";
 import { ForgotPasswordDialog } from "./ForgotPasswordDialog";
+import { getDashboardUrlByRole } from "@/utils/roles";
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
 
   const [isPending, startTransition] = useTransition();
   const [showPassword, setShowPassword] = useState(false);
@@ -62,7 +62,8 @@ export function LoginForm() {
         setGlobalError(result.error);
         return;
       }
-      router.push(callbackUrl);
+      const finalUrl = getDashboardUrlByRole(result.role) 
+      router.push(finalUrl);
       router.refresh();
     });
   };

@@ -13,6 +13,7 @@ import type { Role } from "@/generated/prisma/client";
 
 import { logoutUser } from "@/actions/auth";
 import { cn, roleLabel } from "@/lib/utils";
+import { getDashboardUrlByRole, getMenuUrlByRole } from "@/utils/roles";
 
 interface UserMenuProps {
   user: {
@@ -102,19 +103,19 @@ export function UserMenu({ user }: UserMenuProps) {
           {/* Items */}
           <div className="py-1">
             <MenuLink
-              href="/dashboard"
+              href={`${getMenuUrlByRole(user.role)}/dashboard`}
               icon={<LayoutDashboard className="h-4 w-4" />}
               label="Tableau de bord"
               onClick={() => setOpen(false)}
             />
             <MenuLink
-              href="/profile"
+              href={`${getMenuUrlByRole(user.role)}/profile`}
               icon={<UserIcon className="h-4 w-4" />}
               label="Mon profil"
               onClick={() => setOpen(false)}
             />
             <MenuLink
-              href="/settings"
+              href={`${getMenuUrlByRole(user.role)}/settings`}
               icon={<Settings className="h-4 w-4" />}
               label="Paramètres"
               onClick={() => setOpen(false)}

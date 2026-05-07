@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import { getDashboardUrlByRole } from "@/utils/roles";
 
 /**
  * Config NextAuth **Edge-compatible** (utilisée par le middleware).
@@ -32,13 +33,14 @@ export const authConfig = {
     /** Guard simple pour le middleware. On raffinera par rôle plus tard. */
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      const protectedPrefixes = ["/dashboard", "/participant", "/conferencier", "/organizer", "/admin"];
+      const protectedPrefixes = [ "/participant", "/conferencier", "/organizer", "/admin"];
       const isProtected = protectedPrefixes.some((p) => nextUrl.pathname.startsWith(p));
       const isAuthPage = ["/login", "/register"].includes(nextUrl.pathname);
 
       if (isProtected && !isLoggedIn) return false; //  redirige vers /login
       if (isAuthPage && isLoggedIn) {
-        return Response.redirect(new URL("/dashboard", nextUrl));
+        const dashboardUrl = getDashboardUrlByRole(auth.user.role);
+        return Response.redirect(new URL(dashboardUrl, nextUrl));
       }
       return true;
     },

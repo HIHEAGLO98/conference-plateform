@@ -20,7 +20,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Mot de passe", type: "password" },
       },
       async authorize(credentials) {
-        // 1. Validation Zod — refuse silencieusement si le payload est corrompu
+        // 1. Validation Zod - refuse silencieusement si le payload est corrompu
         const parsed = loginSchema.safeParse(credentials);
         if (!parsed.success) return null;
         const { email, password } = parsed.data;

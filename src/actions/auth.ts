@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 import { Prisma } from "../generated/prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { signIn, signOut } from "@/auth";
+import {auth, signIn, signOut } from "@/auth";
 import {
   loginSchema,
   registerSchema,
@@ -13,10 +13,11 @@ import {
   type RegisterInput,
 } from "@/lib/validators/auth";
 
+
 // Types de retour unifiés 
 
 export type ActionResult<T = unknown> =
-  | { success: true; data?: T; message?: string }
+  | { success: true; data?: T; message?: string ; role?: string}
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
 // REGISTER
@@ -143,7 +144,16 @@ export async function loginUser(input: LoginInput): Promise<ActionResult> {
       password: parsed.data.password,
       redirect: false,
     });
-    return { success: true, message: "Connexion réussie" };
+
+    const user = await prisma.user.findUnique({
+      where: { email: parsed.data.email },
+      select: { role: true },
+    });
+
+    return { success: true, 
+      role: user?.role, 
+      message: "Connexion réussie" 
+    };
   } catch (error) {
     if (error instanceof AuthError) {
       switch (error.type) {
