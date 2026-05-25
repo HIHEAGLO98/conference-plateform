@@ -23,6 +23,24 @@ export const resend =
 
 if (env.NODE_ENV !== "production") globalForResend.resend = resend;
 
+/** Pièce jointe — format Resend v6 (camelCase, max 40 MB par email). */
+export interface MailAttachment {
+  /** Nom du fichier affiché dans le client mail. */
+  filename: string;
+  /**
+   * Contenu du fichier en Buffer ou en base64.
+   * Préférer Buffer côté serveur pour éviter les problèmes d'encodage.
+   */
+  content: Buffer | string;
+  /** MIME type (ex: "application/pdf", "image/png"). */
+  contentType?: string;
+  /**
+   * Content-ID pour les pièces jointes inline (référencées en HTML via cid:).
+   * Laisser vide pour une pièce jointe standard.
+   */
+  contentId?: string;
+}
+
 /*
  * Types
  *
@@ -41,6 +59,8 @@ export interface SendMailOptions {
   replyTo?: string;
   /** Tags pour filtrer dans le dashboard Resend. */
   tags?: { name: string; value: string }[];
+   /** Pièces jointes (PDF billet, attestation…). */
+  attachments?: MailAttachment[];
 }
 
 export type SendMailResult =
@@ -69,6 +89,7 @@ export async function sendMail({
   from,
   replyTo,
   tags,
+  attachments
 }: SendMailOptions): Promise<SendMailResult> {
   // Mode dev sans clé API — on log et on retourne OK pour ne pas bloquer le flow
   if (!resend) {
@@ -88,6 +109,8 @@ export async function sendMail({
       react,
       replyTo: replyTo ?? env.EMAIL_REPLY_TO,
       tags,
+       // Pièces jointes — transmises uniquement si présentes
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
     });
 
     if (error) {
