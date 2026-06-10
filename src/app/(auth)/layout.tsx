@@ -1,5 +1,6 @@
 import { Presentation } from "lucide-react";
-import { BrandPanel } from "@/components/auth/BrandPanel";
+//import { BrandPanel } from "@/components/auth/BrandPanel";
+import { BrandPanel } from "@/components/auth/LoginPanel"; // Réutilisation du même panel que la page de login (illustration + branding)
 import { AuthTabs } from "@/components/auth/AuthTabs";
 import Link from "next/link";
 

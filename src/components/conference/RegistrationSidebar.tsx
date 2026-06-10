@@ -201,7 +201,7 @@ export function RegistrationSidebar({
           <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
             <Lock className="h-4 w-4 flex-shrink-0 text-slate-400" />
             <p className="text-xs font-medium text-slate-500">
-              Les inscriptions sont closes — événement terminé.
+              Les inscriptions sont closes - événement terminé.
             </p>
           </div>
         )}
@@ -210,7 +210,7 @@ export function RegistrationSidebar({
           <div className="flex items-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2.5">
             <AlertTriangle className="h-4 w-4 flex-shrink-0 text-rose-500" />
             <p className="text-xs font-medium text-rose-700">
-              Capacité atteinte — vous pouvez rejoindre la liste d&apos;attente.
+              Capacité atteinte - vous pouvez rejoindre la liste d&apos;attente.
             </p>
           </div>
         )}

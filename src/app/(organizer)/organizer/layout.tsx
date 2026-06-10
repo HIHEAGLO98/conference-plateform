@@ -47,15 +47,10 @@ export default async function OrganizerDashboardLayout({
     redirect("/login");
   }
 
-  // Path courant (pour highlight sidebar) — lu via le header `x-pathname`
-  // injecté par le middleware Next.js. Fallback: /organizer/dashboard.
-  const hdrs = await headers();
-  const currentPath = hdrs.get("x-pathname") ?? "/organizer/dashboard";
-
+ 
   return (
     <div className="min-h-screen bg-slate-100">
       <OrganizerSidebar
-        currentPath={currentPath}
         user={profile}
         conferenceCount={conferenceCount}
       />
@@ -74,6 +69,7 @@ export default async function OrganizerDashboardLayout({
             ]}
             user={profile}
           />
+          
         </Suspense>
 
         <main className="flex-1">{children}</main>
