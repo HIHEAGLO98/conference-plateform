@@ -10,7 +10,7 @@ import { ConferenceToolbar } from "@/components/organizer/ConferenceToolbar";
 import { ConferenceOrganizerGrid } from "@/components/organizer/ConferenceOrganizerGrid";
 import { CreateConferenceModal } from "@/components/modals/CreateConferenceModal";
 
-// ─── Types exportés (consommés par les composants enfants) ──────────────────
+//  Types exportés (consommés par les composants enfants) 
 
 export interface ConferenceRow {
   id: string;
@@ -46,29 +46,7 @@ export interface PageKpis {
   totalArticles: number;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-/** Dérive les initiales d'une conférence depuis son shortName ou son titre. */
-export function conferenceInitials(shortName: string | null, titre: string): string {
-  const src = shortName ?? titre;
-  const words = src.split(/[\s\-_]+/).filter(Boolean);
-  if (words.length === 0) return "??";
-  if (words.length === 1) return src.slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
-
-/** Couleur de l'avatar selon le statut (classes Tailwind). */
-export function avatarClasses(statut: ConferenceStatus): string {
-  switch (statut) {
-    case ConferenceStatus.PUBLISHED: return "bg-teal-100 text-teal-700";
-    case ConferenceStatus.DRAFT:     return "bg-slate-100 text-slate-500";
-    case ConferenceStatus.ARCHIVED:  return "bg-purple-100 text-purple-700";
-    case ConferenceStatus.CANCELLED: return "bg-rose-100 text-rose-700";
-    default:                         return "bg-slate-100 text-slate-400";
-  }
-}
-
-// ─── Fetchers Prisma ─────────────────────────────────────────────────────────
+//  Fetchers Prisma     
 
 type StatusFilter = ConferenceStatus | "ALL";
 
@@ -237,7 +215,7 @@ async function fetchKpis(organizerId: string): Promise<PageKpis> {
   };
 }
 
-// ─── Composants async (Suspense boundaries) ──────────────────────────────────
+//  Composants async (Suspense boundaries) 
 
 async function KpiStripSection({ organizerId }: { organizerId: string }) {
   const kpis = await fetchKpis(organizerId);
@@ -349,7 +327,7 @@ function GridSkeleton() {
   );
 }
 
-// ─── Page principale ─────────────────────────────────────────────────────────
+//  Page principale 
 
 interface PageProps {
   searchParams: Promise<{ statut?: string; q?: string; modal?: string }>;

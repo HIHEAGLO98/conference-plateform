@@ -41,9 +41,8 @@ import Link from "next/link";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import { ConferenceStatus } from "@/generated/prisma/client";
-import type { ConferenceRow } from "@/app/(dashboard)/organizer/conferences/page";
-import { conferenceInitials, avatarClasses } from "@/app/(dashboard)/organizer/conferences/page";
+import type { ConferenceStatus } from "@/generated/prisma/client";
+import type { ConferenceRow } from "@/app/(organizer)/organizer/conferences/page";
 
 //  Types locaux 
 
@@ -54,31 +53,62 @@ interface ConferenceOrganizerGridProps {
   statusFilter: StatusFilter;
 }
 
-//  Helpers visuels ──────────────────────────────────────────────────────────
+/** Couleur de l'avatar selon le statut (classes Tailwind). */
+//  function avatarClasses(statut: ConferenceStatus): string {
+//   switch (statut) {
+//     case ConferenceStatus.PUBLISHED: return "bg-teal-100 text-teal-700";
+//     case ConferenceStatus.DRAFT:     return "bg-slate-100 text-slate-500";
+//     case ConferenceStatus.ARCHIVED:  return "bg-purple-100 text-purple-700";
+//     case ConferenceStatus.CANCELLED: return "bg-rose-100 text-rose-700";
+//     default:                         return "bg-slate-100 text-slate-400";
+//   }
+// }
+
+function avatarClasses(statut: ConferenceStatus): string {
+  switch (statut) {
+    case "PUBLISHED": return "bg-teal-100 text-teal-700";
+    case "DRAFT":     return "bg-slate-100 text-slate-500";
+    case "ARCHIVED":  return "bg-purple-100 text-purple-700";
+    case "CANCELLED": return "bg-rose-100 text-rose-700";
+    default:          return "bg-slate-100 text-slate-400";
+  }
+}
+
+/** Dérive les initiales d'une conférence depuis son shortName ou son titre. */
+function conferenceInitials(shortName: string | null, titre: string): string {
+  const src = shortName ?? titre;
+  const words = src.split(/[\s\-_]+/).filter(Boolean);
+  if (words.length === 0) return "??";
+  if (words.length === 1) return src.slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+
+//  Helpers visuels 
 
 function statusBadge(statut: ConferenceStatus) {
   switch (statut) {
-    case ConferenceStatus.PUBLISHED:
+    case "PUBLISHED":
       return (
         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
           Publié
         </span>
       );
-    case ConferenceStatus.DRAFT:
+    case "DRAFT":
       return (
         <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
           <span className="text-amber-500">⚠</span>
           Brouillon
         </span>
       );
-    case ConferenceStatus.ARCHIVED:
+    case "ARCHIVED":
       return (
         <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-bold text-purple-700">
           Archivé
         </span>
       );
-    case ConferenceStatus.CANCELLED:
+    case "CANCELLED":
       return (
         <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">
           Annulé
@@ -116,7 +146,7 @@ function daysUntil(date: Date): number {
   return Math.ceil((date.getTime() - Date.now()) / 86_400_000);
 }
 
-//   Sous-composant : panneau de détail (slide-in) ────────────────────────────
+//  Sous-composant : panneau de détail (slide-in) 
 
 interface DetailPanelProps {
   conference: ConferenceRow | null;
@@ -237,7 +267,7 @@ function DetailPanel({ conference, onClose }: DetailPanelProps) {
               {activeTab === "overview" && (
                 <div className="space-y-5 p-5">
                   {/* Alerte brouillon */}
-                  {conference.statut === ConferenceStatus.DRAFT && (
+                  {conference.statut === "DRAFT" && (
                     <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                       <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" />
                       <div className="flex-1">
@@ -404,7 +434,7 @@ function DetailPanel({ conference, onClose }: DetailPanelProps) {
                   <Edit className="h-4 w-4" />
                   Modifier
                 </Link>
-                {conference.statut === ConferenceStatus.DRAFT && (
+                {conference.statut === "DRAFT" && (
                   <Link
                     href={`?modal=edit-conf&id=${conference.id}&publish=1`}
                     scroll={false}
@@ -423,7 +453,7 @@ function DetailPanel({ conference, onClose }: DetailPanelProps) {
   );
 }
 
-// ─── Composant principal : table TanStack ─────────────────────────────────────
+//  Composant principal : table TanStack 
 
 const columnHelper = createColumnHelper<ConferenceRow>();
 
@@ -446,7 +476,7 @@ export function ConferenceOrganizerGrid({
     []
   );
 
-  // ─── Définition des colonnes ──────────────────────────────────────────────
+  //  Définition des colonnes 
 
   const columns = useMemo<ColumnDef<ConferenceRow, unknown>[]>(
     () => [
@@ -665,7 +695,7 @@ export function ConferenceOrganizerGrid({
     []
   );
 
-  // ─── Instance TanStack Table ──────────────────────────────────────────────
+  //  Instance TanStack Table 
 
   const table = useReactTable({
     data: conferences,
@@ -686,7 +716,7 @@ export function ConferenceOrganizerGrid({
     table.setPageSize(size);
   };
 
-  // ─── Empty State ──────────────────────────────────────────────────────────
+  //  Empty State 
 
   if (conferences.length === 0) {
     const isFiltered = statusFilter !== "ALL";
@@ -717,11 +747,11 @@ export function ConferenceOrganizerGrid({
     );
   }
 
-  // ─── Selection bar ────────────────────────────────────────────────────────
+  //  Selection bar 
 
   const selectedCount = Object.keys(rowSelection).length;
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  //  Render 
 
   return (
     <>
