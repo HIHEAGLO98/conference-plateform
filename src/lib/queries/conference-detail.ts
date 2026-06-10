@@ -6,7 +6,7 @@ import {
   ConferenceVisibility,
   InscriptionStatus,
   Prisma,
-} from "@/generated/prisma/client";
+} from "@generated/prisma/client";
 
 /**
  * Sélection Prisma canonique pour la page de détail publique d'une conférence.

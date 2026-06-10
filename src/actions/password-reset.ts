@@ -1,7 +1,7 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { UserStatus } from "../generated/prisma/client";
+import { UserStatus } from "@generated/prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mail";

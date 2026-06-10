@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { AuditAction, ConferenceStatus, FormaType } from "@/generated/prisma/client";
+import { AuditAction, ConferenceStatus, FormaType } from "@generated/prisma/client";
 import {
   createConferenceSchema,
   createSessionSchema,
@@ -281,7 +281,7 @@ export async function createSession(
     const newSession = await prisma.session.create({
       data: {
         titre,
-        type: type as import("@/generated/prisma/client").SessionType,
+        type: type as import("@generated/prisma/client").SessionType,
         salle: salle || null,
         horaireDebut: new Date(horaireDebut),
         horaireFin: new Date(horaireFin),

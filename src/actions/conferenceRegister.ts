@@ -13,7 +13,7 @@ import {
   AuditAction,
   InscriptionStatus,
   InscriptionType,
-} from "@/generated/prisma/client";
+} from "@generated/prisma/client";
 import { ConferenceRegistrationEmail } from "@/emails/ConferenceRegistrationEmail";
 
 //  Types 

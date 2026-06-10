@@ -10,7 +10,7 @@ import {
 
 import type { ConferenceDetail } from "@/lib/queries/conference-detail";
 import { cn } from "@/lib/utils";
-import { FormaType } from "@/generated/prisma/client"
+import { FormaType } from "@generated/prisma/client"
 
 /* 
  * Hero statique (Server Component) — tags, titre, infos, jauge.

@@ -41,7 +41,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import type { ConferenceStatus } from "@/generated/prisma/client";
+import type { ConferenceStatus } from "@generated/prisma/client";
 import type { ConferenceRow } from "@/app/(organizer)/organizer/conferences/page";
 
 //  Types locaux 
@@ -478,36 +478,46 @@ export function ConferenceOrganizerGrid({
 
   //  Définition des colonnes 
 
-  const columns = useMemo<ColumnDef<ConferenceRow, unknown>[]>(
+  const columns = useMemo<ColumnDef<ConferenceRow, any>[]>(
     () => [
       // Sélection
       columnHelper.display({
-        id: "select",
-        header: ({ table }) => (
-          <input
-            type="checkbox"
-            className="accent-teal-600"
-            checked={table.getIsAllPageRowsSelected()}
-            ref={(el) => {
-              if (el) el.indeterminate = table.getIsSomePageRowsSelected();
-            }}
-            onChange={table.getToggleAllPageRowsSelectedHandler()}
-            aria-label="Sélectionner tout"
-          />
-        ),
-        cell: ({ row }) => (
-          <input
-            type="checkbox"
-            className="accent-teal-600"
-            checked={row.getIsSelected()}
-            onChange={row.getToggleSelectedHandler()}
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`Sélectionner ${row.original.titre}`}
-          />
-        ),
-        size: 40,
-        enableSorting: false,
-      }),
+        // id: "select",
+        // header: ({ table }) => (
+          
+        //   <input
+        //     type="checkbox"
+        //     className="accent-teal-600"
+        //     checked={table.getIsAllPageRowsSelected()}
+        //     ref={(el) => {
+        //       if (el) el.indeterminate = table.getIsSomePageRowsSelected();
+        //     }}
+        //     onChange={table.getToggleAllPageRowsSelectedHandler()}
+        //     aria-label="Sélectionner tout"
+        //   />
+        // ),
+          id: "select",
+          header: ({ table }) => {
+              if (!table) return null;
+              return <input type="checkbox" className="accent-teal-600" checked={table.getIsAllPageRowsSelected()} onChange={table.getToggleAllPageRowsSelectedHandler()} />;
+          },
+          cell: ({ row }) => <input type="checkbox" className="accent-teal-600" checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} onClick={(e) => e.stopPropagation()} />,
+          size: 40,
+        }) as ColumnDef<ConferenceRow, any>,
+
+        // cell: ({ row }) => (
+        //   <input
+        //     type="checkbox"
+        //     className="accent-teal-600"
+        //     checked={row.getIsSelected()}
+        //     onChange={row.getToggleSelectedHandler()}
+        //     onClick={(e) => e.stopPropagation()}
+        //     aria-label={`Sélectionner ${row.original.titre}`}
+        //   />
+        // ),
+        // size: 40,
+        // enableSorting: false,
+      //}),
 
       // Conférence (avatar + titre + thème)
       columnHelper.accessor("titre", {

@@ -28,7 +28,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-import type { ArticleStatus, ArticleType } from "@/generated/prisma/client";
+import type { ArticleStatus, ArticleType } from "@generated/prisma/client";
 import type { SubmissionRow } from "@/app/(organizer)/organizer/submissions/page";
 
 interface SubmissionGridProps {

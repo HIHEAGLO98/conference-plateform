@@ -6,7 +6,7 @@ import {
   ConferenceVisibility,
   InscriptionStatus,
   Prisma,
-} from "@/generated/prisma/client";
+} from "@generated/prisma/client";
 import {
   buildConferenceWhere,
 } from "./conference-db";

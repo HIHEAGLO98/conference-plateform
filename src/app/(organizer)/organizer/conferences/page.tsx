@@ -5,7 +5,7 @@ import { Calendar, Layers, Plus, Users, FileText } from "lucide-react";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { InscriptionStatus, ConferenceStatus } from "@/generated/prisma/client";
+import { InscriptionStatus, ConferenceStatus } from "@generated/prisma/client";
 import { ConferenceToolbar } from "@/components/organizer/ConferenceToolbar";
 import { ConferenceOrganizerGrid } from "@/components/organizer/ConferenceOrganizerGrid";
 import { CreateConferenceModal } from "@/components/modals/CreateConferenceModal";

@@ -4,7 +4,7 @@ import { Layers } from "lucide-react";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { SessionType } from "@/generated/prisma/client";
+import { SessionType } from "@generated/prisma/client";
 import { SessionToolbar } from "@/components/organizer/sessions/SessionToolbar";
 import { SessionOrganizerGrid } from "@/components/organizer/sessions/SessionOrganizerGrid";
 

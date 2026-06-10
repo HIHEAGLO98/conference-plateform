@@ -7,7 +7,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 // 🚨 Import partiel strict sous forme de type : ZÉRO fuite de module !
-import type { SessionType } from "@/generated/prisma/client";
+import type { SessionType } from "@generated/prisma/client";
 
 type TypeFilter = SessionType | "ALL";
 

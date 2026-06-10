@@ -4,7 +4,7 @@ import { FileText } from "lucide-react";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { ArticleStatus, ArticleType } from "@/generated/prisma/client";
+import { ArticleStatus, ArticleType } from "@generated/prisma/client";
 import { SubmissionToolbar } from "@/components/organizer/submissions/SubmissionToolbar";
 import { SubmissionOrganizerGrid } from "@/components/organizer/submissions/SubmissionOrganizerGrid";
 
