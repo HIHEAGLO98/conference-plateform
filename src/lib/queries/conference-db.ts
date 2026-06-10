@@ -1,5 +1,5 @@
 import "server-only"; 
-import { FormaType, Prisma } from "@/generated/prisma/client";
+import { FormaType, Prisma } from "@generated/prisma/client";
 import { ConferenceFilters, DOMAIN_KEYWORDS } from "./conference-filters";
 
 const MS_PER_DAY = 86_400_000;

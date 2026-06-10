@@ -5,7 +5,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Download, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-import type { ArticleStatus } from "@/generated/prisma/client";
+import type { ArticleStatus } from "@generated/prisma/client";
 
 type StatusFilter = ArticleStatus | "ALL";
 

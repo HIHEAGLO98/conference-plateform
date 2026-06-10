@@ -5,7 +5,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Download, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { ConferenceStatus } from "@/generated/prisma/client";
+import { ConferenceStatus } from "@generated/prisma/client";
 
 //  Types 
 

@@ -1,4 +1,4 @@
-import { FormaType } from "@/generated/prisma/client";
+import { FormaType } from "@generated/prisma/client";
 import type { HomeConferenceRow } from "@/lib/queries/conferences";
 import type {
   AccentColor,

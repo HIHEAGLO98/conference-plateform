@@ -5,7 +5,7 @@ import Image from "next/image";
 import { ChevronRight, Users, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { Session } from "@/generated/prisma/client";
+import type { Session } from "@generated/prisma/client";
 import type { Speaker } from "@/lib/utils/speakers";
 
 

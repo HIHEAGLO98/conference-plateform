@@ -29,7 +29,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-import type { SessionType } from "@/generated/prisma/client";
+import type { SessionType } from "@generated/prisma/client";
 import type { SessionRow } from "@/app/(organizer)/organizer/sessions/page";
 
 type TypeFilter = SessionType | "ALL";

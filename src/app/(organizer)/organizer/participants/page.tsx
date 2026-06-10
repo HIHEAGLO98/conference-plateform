@@ -4,7 +4,7 @@ import { Users } from "lucide-react";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { InscriptionStatus, InscriptionType } from "@/generated/prisma/client";
+import { InscriptionStatus, InscriptionType } from "@generated/prisma/client";
 import { ParticipantToolbar } from "@/components/organizer/participants/ParticipantToolbar";
 import { ParticipantOrganizerGrid } from "@/components/organizer/participants/ParticipantOrganizerGrid";
 

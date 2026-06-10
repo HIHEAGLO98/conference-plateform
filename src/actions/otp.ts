@@ -7,7 +7,7 @@ import { sendMail } from "@/lib/mail";
 import { generateOtp, getOtpExpiryDate } from "@/lib/otp";
 import { VerificationEmail } from "@/emails/VerificationEmail";
 
-import { UserStatus, AuditAction  } from "../generated/prisma/client";
+import { UserStatus, AuditAction  } from "@generated/prisma/client";
 
 /* 
  * Types de retour 

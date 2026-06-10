@@ -2,7 +2,7 @@
 
 import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
-import { Prisma } from "../generated/prisma/client";
+import { Prisma } from "@generated/prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import {auth, signIn, signOut } from "@/auth";

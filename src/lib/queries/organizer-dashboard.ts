@@ -6,7 +6,7 @@ import {
   ConferenceStatus,
   InscriptionStatus,
   Prisma,
-} from "@/generated/prisma/client";
+} from "@generated/prisma/client";
 
 /* 
  * Queries pour le dashboard Organisateur.

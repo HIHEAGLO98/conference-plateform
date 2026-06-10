@@ -28,7 +28,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-import type { InscriptionStatus, InscriptionType } from "@/generated/prisma/client";
+import type { InscriptionStatus, InscriptionType } from "@generated/prisma/client";
 import type { ParticipantRow } from "@/app/(organizer)/organizer/participants/page";
 
 type StatusFilter = InscriptionStatus | "ALL";
